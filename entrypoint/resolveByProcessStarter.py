@@ -1,0 +1,89 @@
+import os
+import sys
+
+from pySimpleSpringFramework.spring_core.applicationStarter import ApplicationStarter
+from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import ComponentScan, ConfigDirectories
+
+# 把父目录放入path， 父目录就是包。 这个需要自己调整
+root_model_path = os.path.dirname(os.path.dirname(os.getcwd()))
+sys.path.append(root_model_path)
+
+
+# 基于 root_model_path 的相对的位置， 因为 root_model_path 就是包
+@ComponentScan("../../addressSearch/service",
+               "../../addressSearch/mapping",
+               "../../addressSearch/entity",
+               "../../addressSearch/controller",
+               "../../addressSearch/resolver",
+               )
+# 这里修改成自己的配置文件位置（相对当前这个启动文件的位置）
+@ConfigDirectories("../../config")
+class ServiceApplication(ApplicationStarter):
+    def __init__(self):
+        super().__init__()
+        self._address_mapping = None
+        self._application_environment = None
+
+    def truncate_address_table(self):
+        parsed_address_table = self._application_environment.get("project.tables.parsed_address_table")
+        self._address_mapping.truncate_table(parsed_address_table)
+
+    def get_parse_data_count(self):
+        table = self._application_environment.get("project.tables.address_table")
+        data = self._address_mapping.get_data_count(table)
+        return data.iloc[0, 0]
+
+    def do_parse_table(self, start_row, end_row):
+        service = self.application_context.get_bean("resolveToDBService")
+        service.start_by_process(start_row, end_row)
+
+    def do_post_to_es(self):
+        service = self.application_context.get_bean("postDataToEsService")
+        service.start_by_thread()
+
+    def main(self):
+        self._application_environment = self.application_context.get_bean("applicationEnvironment")
+        self._address_mapping = self.application_context.get_bean("addressMapping")
+
+
+def task_parse(start_row, end_row):
+    app = ServiceApplication()
+    app.run()
+    app.do_parse_table(start_row, end_row)
+
+
+# def callback_function(future):
+#     future.result()
+
+
+def parse_process(app):
+    executorTaskManager = app.application_context.get_bean("executorTaskManager")
+    process_count = executorTaskManager.core_num
+    data_count = app.get_parse_data_count()
+    batch_size = data_count / process_count
+    batch_size = int(batch_size if data_count % process_count == 0 else batch_size + 1)
+    app.truncate_address_table()
+
+    for i in range(process_count):
+        start = i * batch_size
+        end = start + batch_size
+        # print(start, end)
+        executorTaskManager.submit(task_parse, True, None, start, end)
+    executorTaskManager.wait_completed()
+
+
+if __name__ == '__main__':
+    print("root_model_path=", root_model_path)
+
+    serviceApplication = ServiceApplication()
+    serviceApplication.run(True)
+
+    # ================= 解析
+    parse_process(serviceApplication)
+
+    # ================ 入库es
+    # to_es_process(serviceApplication, count)
+    # 非cpu并发，线程即可
+    serviceApplication.do_post_to_es()
+
+    # print("=============== 完成 ================")

@@ -1,2 +1,0 @@
-# addressSearch
-基于pySimpleSpringFramework的新版地名地址引擎
