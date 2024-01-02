@@ -421,7 +421,7 @@ class EsSearchService:
                     searchResultAll[dataId] = ""
         return searchResultAll
 
-    def commonSearch(self, jsonParam):
+    def commonSearch(self, keyField, jsonParam):
         """
         point radius 和 wkt 取其一
 
@@ -433,6 +433,7 @@ class EsSearchService:
            "start": 0,                      用于分页，查询结果索引起始值，默认0
            "rows": 0                        用于分页，查询结果返回记录数，默认0，最大值500
         }
+        :param keyField:
         :param jsonParam:
         :return:
         """
@@ -449,7 +450,7 @@ class EsSearchService:
             searchList = []
             for item in items:
                 searchList.append({
-                    "fullname": item["_source"]["fullname"],
+                    keyField: item["_source"][keyField],
                     "location": item["_source"]["location"]
                 })
 
@@ -461,7 +462,7 @@ class EsSearchService:
             }
         except Exception as e:
             return {
-                "code": 500,
+                "code": 0,
                 "msg": str(e)
             }
 
