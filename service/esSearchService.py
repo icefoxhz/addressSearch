@@ -493,16 +493,17 @@ class EsSearchService:
         #  空间查询
         if "point" in jsonParam and "radius" in jsonParam:
             points = str(jsonParam["point"]).split(" ")
-            searchParam["query"]["bool"]["must"].append({
-                "geo_distance": {
-                    "distance": str(jsonParam["radius"]) + "km",
-                    "distance_type": "arc",
-                    "location": {
-                        "lat": float(points[1]),
-                        "lon": float(points[0])
+            if len(points) == 2:
+                searchParam["query"]["bool"]["must"].append({
+                    "geo_distance": {
+                        "distance": str(jsonParam["radius"]) + "km",
+                        "distance_type": "arc",
+                        "location": {
+                            "lat": float(points[1].strip()),
+                            "lon": float(points[0].strip())
+                        }
                     }
-                }
-            })
+                })
         elif "wkt" in jsonParam:
             geometry = loads(jsonParam["wkt"])
 
