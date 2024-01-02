@@ -97,8 +97,11 @@ class PostDataToEsService:
     def start_by_thread(self):
         progress_bar = tqdm(total=0, position=0, leave=True, desc="从解析表读取数据后写入到ElasticSearch库, 当前完成 ",
                             unit=" 条")
-
         try:
+            es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+            es.create(self._db_name)
+            es.close()
+
             page = 0
             while True:
                 df = self._addressMapping.get_parsed_data(self._parsed_address_table,

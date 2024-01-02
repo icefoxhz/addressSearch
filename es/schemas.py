@@ -1,6 +1,9 @@
 schemaMain = {
     "mappings": {
         "properties": {
+            "location": {
+                "type": "geo_point"
+            },
             "fullName": {
                 "type": "keyword",
                 "index": True,
@@ -85,9 +88,6 @@ schemaMain = {
                 "type": "keyword",
                 "index": True,
                 "store": True
-            },
-            "location": {
-                "type": "geo_point"
             }
         }
     }

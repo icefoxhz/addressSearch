@@ -2,7 +2,7 @@ import ujson as json
 from typing import Dict
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pySimpleSpringFramework.spring_core.log import log
 
 from addressSearch.entrypoint.applicationStarter import serviceApplication
@@ -95,6 +95,24 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
         log.error("searchByAddress error =>" + str(e))
 
     return genRestResult(result)
+
+
+@rest_app.post("/search")
+async def appSearchByAddress(request: Request):
+    result = {}
+    try:
+        jsonRequest = await request.json()
+
+        # 这里是获取bean的例子
+        esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+        result = esSearchService.commonSearch(jsonRequest)
+    except Exception as e:
+        log.error("searchByAddress error =>" + str(e))
+        result["msg"] = str(e)
+        result["code"] = 500
+
+    # return json.dumps(result, ensure_ascii=False)
+    return result
 
 
 def start_rest_service(port):

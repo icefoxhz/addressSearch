@@ -2,7 +2,7 @@ import math
 from copy import deepcopy
 
 import ujson as json
-
+from shapely.wkt import loads
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component, Scope
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Autowired, Value
 from shapely import wkt
@@ -420,3 +420,105 @@ class EsSearchService:
                 else:
                     searchResultAll[dataId] = ""
         return searchResultAll
+
+    def commonSearch(self, jsonParam):
+        """
+        point radius 和 wkt 取其一
+
+        {
+           "key": "region",                 字段名
+           "point": "120.29 31.92",         示例：120.29 31.92
+           "radius": "100m",
+           "wkt": "POLYGON((120.33569335900006 31.545104980000076,120.34569335900007 31.545104980000076,120.32569335900006 31.645104980000077,120.33569335900006 31.545104980000076))",
+           "start": 0,                      用于分页，查询结果索引起始值，默认0
+           "rows": 0                        用于分页，查询结果返回记录数，默认0，最大值500
+        }
+        :param jsonParam:
+        :return:
+        """
+
+        try:
+            searchParam = self.generateCommonSearchParam(jsonParam)
+            if self._print_debug:
+                print("searchParam = ", searchParam)
+            searchResult = self._searchMain.query(jsonQuery=searchParam)
+
+            searchCount = int(searchResult.get("hits").get("total").get("value"))
+            items = searchResult.get("hits").get("hits")
+
+            searchList = []
+            for item in items:
+                searchList.append({
+                    "fullname": item["_source"]["fullname"],
+                    "location": item["_source"]["location"]
+                })
+
+            return {
+                "total": searchCount,
+                "data": searchList,
+                "code": 200,
+                "msg": "success"
+            }
+        except Exception as e:
+            return {
+                "code": 500,
+                "msg": str(e)
+            }
+
+    @staticmethod
+    def generateCommonSearchParam(jsonParam):
+        searchParam = {
+            "query": {
+                "bool": {
+                    "must": []
+                }
+            }
+        }
+
+        # 分页
+        if "start" in jsonParam and "rows" in jsonParam and int(jsonParam["rows"]) > 0:
+            searchParam["from"] = int(jsonParam["start"])
+            size = int(jsonParam["rows"])
+            searchParam["size"] = size if size <= 500 else 500
+
+        #  字段模糊查询
+        if "key" in jsonParam and jsonParam["key"] is not None and str(jsonParam["key"]).strip() != "":
+            searchParam["query"]["bool"]["must"].append({
+                "query_string": {
+                    "default_field": "fullname",
+                    "query": str(jsonParam["key"])
+                }
+            })
+
+        #  空间查询
+        if "point" in jsonParam and "radius" in jsonParam:
+            points = str(jsonParam["point"]).split(" ")
+            searchParam["query"]["bool"]["must"].append({
+                "geo_distance": {
+                    "distance": str(jsonParam["radius"]) + "km",
+                    "distance_type": "arc",
+                    "location": {
+                        "lat": float(points[1]),
+                        "lon": float(points[0])
+                    }
+                }
+            })
+        elif "wkt" in jsonParam:
+            geometry = loads(jsonParam["wkt"])
+
+            points = []
+            geoPoints = list(geometry.exterior.coords)
+            for geoPoint in geoPoints:
+                points.append({
+                    "lon": geoPoint[0],
+                    "lat": geoPoint[1]
+                })
+            searchParam["query"]["bool"]["must"].append({
+                "geo_polygon": {
+                    "location": {
+                        "points": points
+                    }
+                }
+            })
+
+        return searchParam

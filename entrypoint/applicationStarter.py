@@ -21,14 +21,9 @@ sys.path.append(root_model_path)
 class ServiceApplication(ApplicationStarter):
     def __init__(self):
         super().__init__()
-        self.__application_context = None
 
-    @property
-    def application_context(self):
-        return self.__application_context
-
-    def main(self, application_context):
-        self.__application_context = application_context
+    def main(self):
+        pass
 
 
 serviceApplication = ServiceApplication()

@@ -52,6 +52,7 @@ class ElasticsearchManger:
     def create(self, index_name):
         conn = self._get_conn()
         if not conn.indices.exists(index=index_name):
+            # print("create index: ", index_name, " body: ", self.__indexSchema)
             conn.indices.create(index=index_name, body=self.__indexSchema)
 
     def close(self):
@@ -88,4 +89,4 @@ class ElasticsearchManger:
     def query(self, jsonQuery):
         conn = self._get_conn()
         self.__local_obj.last_do_time = time.time()
-        return conn.search(query=jsonQuery["query"], index=self.__indexName, doc_type="_doc")
+        return conn.search(body=jsonQuery, index=self.__indexName, doc_type="_doc")
