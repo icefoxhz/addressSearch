@@ -115,6 +115,8 @@ async def appSearchByAddress(request: Request):
     return result
 
 
-def start_rest_service(port):
+def start_rest_service():
     # 启动rest服务
+    applicationEnvironment = serviceApplication.application_context.get_bean("applicationEnvironment")
+    port = applicationEnvironment.get("project.http.rest_port")
     uvicorn.run(rest_app, host="0.0.0.0", port=port, reload=False)

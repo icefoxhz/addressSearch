@@ -7,4 +7,4 @@ if __name__ == '__main__':
     serviceApplication.run(True)
 
     # 启动rest服务
-    start_rest_service(5000)
+    start_rest_service()
