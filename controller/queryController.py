@@ -105,7 +105,7 @@ async def appSearchByAddress(request: Request):
 
         # 这里是获取bean的例子
         esSearchService = serviceApplication.application_context.get_bean("esSearchService")
-        result = esSearchService.commonSearch(keyField="fullname", jsonParam=jsonRequest)
+        result = esSearchService.commonSearch(jsonParam=jsonRequest)
     except Exception as e:
         log.error("searchByAddress error =>" + str(e))
         result["msg"] = str(e)

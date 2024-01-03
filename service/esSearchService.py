@@ -18,6 +18,7 @@ from addressSearch.resolver.lacModelManager import LacModelManager
 class EsSearchService:
     @Value({
         "project.print_debug": "_print_debug",
+        "project.search_key": "_search_key",
         "project.elasticsearch.db.db_name": "_db_name",
         "project.elasticsearch.db.ip": "_ip",
         "project.elasticsearch.db.port": "_port",
@@ -27,6 +28,7 @@ class EsSearchService:
     })
     def __init__(self):
         self._print_debug = False
+        self._search_key = None
         self._db_name = None
         self._ip = None
         self._port = None
@@ -421,25 +423,25 @@ class EsSearchService:
                     searchResultAll[dataId] = ""
         return searchResultAll
 
-    def commonSearch(self, keyField, jsonParam):
+    def commonSearch(self, jsonParam):
         """
         point radius 和 wkt 取其一
 
         {
-           "key": "region",                 字段名
+           "key": "name",                   字段名
            "point": "120.29 31.92",         示例：120.29 31.92
            "radius": "100m",
            "wkt": "POLYGON((120.33569335900006 31.545104980000076,120.34569335900007 31.545104980000076,120.32569335900006 31.645104980000077,120.33569335900006 31.545104980000076))",
            "start": 0,                      用于分页，查询结果索引起始值，默认0
            "rows": 0                        用于分页，查询结果返回记录数，默认0，最大值500
         }
-        :param keyField:
         :param jsonParam:
         :return:
         """
 
         try:
-            searchParam = self.generateCommonSearchParam(jsonParam)
+
+            searchParam = self.generateCommonSearchParam(self._search_key, jsonParam)
             if self._print_debug:
                 print("searchParam = ", searchParam)
             searchResult = self._searchMain.query(jsonQuery=searchParam)
@@ -449,10 +451,7 @@ class EsSearchService:
 
             searchList = []
             for item in items:
-                searchList.append({
-                    keyField: item["_source"][keyField],
-                    "location": item["_source"]["location"]
-                })
+                searchList.append(item["_source"])
 
             return {
                 "total": searchCount,
@@ -467,7 +466,7 @@ class EsSearchService:
             }
 
     @staticmethod
-    def generateCommonSearchParam(jsonParam):
+    def generateCommonSearchParam(keyField, jsonParam):
         searchParam = {
             "query": {
                 "bool": {
@@ -486,7 +485,8 @@ class EsSearchService:
         if "key" in jsonParam and jsonParam["key"] is not None and str(jsonParam["key"]).strip() != "":
             searchParam["query"]["bool"]["must"].append({
                 "query_string": {
-                    "default_field": "fullname",
+                    "default_field": keyField,
+                    # "query": "*" + str(jsonParam["key"]) + "*"
                     "query": str(jsonParam["key"])
                 }
             })
