@@ -152,7 +152,7 @@ class PostDataToEsService:
                 continue
 
         if len(ids) > 0:
-            self._self.set_completed(ids)
+            self._self.set_waiting_completed(ids)
 
         if progress_bar is not None:
             progress_bar.update(len(df))
@@ -160,12 +160,14 @@ class PostDataToEsService:
         return len(df)
 
     @Transactional(propagation=Propagation.REQUIRES_NEW)
-    def set_completed(self, ids):
+    def set_waiting_completed(self, ids):
         for tId in ids:
-            self._addressMapping.set_completed(self._parsed_address_table, tId)
+            self._addressMapping.set_waiting_completed(self._parsed_address_table, tId)
 
     def start_by_thread(self):
-        progress_bar = None
+        progress_bar = tqdm(total=0, position=0, leave=True,
+                            desc="从解析表读取数据后写入到ElasticSearch库, 当前完成 ", unit=" 条")
+
         try:
             if not self.__isESSchemaCreated:
                 self._createESSchema()
@@ -180,10 +182,6 @@ class PostDataToEsService:
                 if df is None or len(df) == 0:
                     break
 
-                if progress_bar is None:
-                    progress_bar = tqdm(total=0, position=0, leave=True,
-                                        desc="从解析表读取数据后写入到ElasticSearch库, 当前完成 ", unit=" 条")
-
                 future = self._executorTaskManager.submit(self._self.do_run,
                                                           False,
                                                           self.callback_function,
@@ -192,12 +190,13 @@ class PostDataToEsService:
                 futures.append(future)
                 page += 1
             self._executorTaskManager.waitUntilComplete(futures)
-            if progress_bar is not None:
-                progress_bar.close()
 
+            # 把完成的状态更新  flag=9
+            self._addressMapping.set_all_waiting_completed(self._parsed_address_table)
+
+            progress_bar.close()
             if len(futures) > 0:
                 print("======= {} 本次操作完成 =======\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-
             futures.clear()
 
             return True

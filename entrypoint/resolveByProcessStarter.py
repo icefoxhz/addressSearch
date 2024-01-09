@@ -23,6 +23,7 @@ class ServiceApplication(ApplicationStarter):
     def __init__(self):
         super().__init__()
         self._address_table = None
+        self._address_parsed_table = None
         self._address_mapping = None
         self._application_environment = None
 
@@ -30,14 +31,21 @@ class ServiceApplication(ApplicationStarter):
         parsed_address_table = self._application_environment.get("project.tables.parsed_address_table")
         self._address_mapping.truncate_table(parsed_address_table)
 
-    def get_parse_data_count(self):
-        self._address_table = self._application_environment.get("project.tables.address_table")
+    def get_address_data_count(self):
         data = self._address_mapping.get_data_count(self._address_table)
+        return data.iloc[0, 0]
+
+    def get_parsed_address_data_count(self):
+        data = self._address_mapping.get_data_count(self._address_parsed_table)
         return data.iloc[0, 0]
 
     def set_all_waiting_completed(self):
         # 防止 flag=8的没更新， 每次启动先把 flag=8 的更新成 9
+        self._address_table = self._application_environment.get("project.tables.address_table")
         self._address_mapping.set_all_waiting_completed(self._address_table)
+
+        self._address_parsed_table = self._application_environment.get("project.tables.parsed_address_table")
+        self._address_mapping.set_all_waiting_completed(self._address_parsed_table)
 
     def do_parse_table(self, start_row, end_row):
         service = self.application_context.get_bean("resolveToDBService")
@@ -59,8 +67,7 @@ def task_parse(start_row, end_row):
 
 
 def parse_process(app):
-    data_count = app.get_parse_data_count()
-    app.set_all_waiting_completed()
+    data_count = app.get_address_data_count()
     if data_count == 0:
         return
 
@@ -85,15 +92,24 @@ def parse_process(app):
     executorTaskManager.wait_completed()
 
 
+def post_to_es(app):
+    data_count = app.get_parsed_address_data_count()
+    if data_count == 0:
+        return
+    app.do_post_to_es()
+
+
 if __name__ == '__main__':
     print("root_model_path=", root_model_path)
 
     serviceApplication = ServiceApplication()
     serviceApplication.run(True)
 
+    serviceApplication.set_all_waiting_completed()
+
     while True:
         # ================= 解析更新数据库
         parse_process(serviceApplication)
         # ================ 更新es库
-        serviceApplication.do_post_to_es()
+        post_to_es(serviceApplication)
         sleep(5)

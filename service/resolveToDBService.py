@@ -1,5 +1,3 @@
-import time
-
 from pySimpleSpringFramework.spring_core.task.executorTaskManager import ExecutorTaskManager
 from pySimpleSpringFramework.spring_core.type.annotationType import Propagation
 from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Transactional
