@@ -438,12 +438,13 @@ class EsSearchService:
         :param jsonParam:
         :return:
         """
-
         try:
-
             searchParam = self.generateCommonSearchParam(self._search_key, jsonParam)
             if self._print_debug:
                 print("searchParam = ", searchParam)
+            if searchParam is None:
+                raise Exception("必须包含查询关键字")
+
             searchResult = self._searchMain.query(jsonQuery=searchParam)
 
             searchCount = int(searchResult.get("hits").get("total").get("value"))
@@ -454,9 +455,9 @@ class EsSearchService:
                 searchList.append(item["_source"])
 
             return {
-                "total": searchCount,
-                "data": searchList,
-                "code": 200,
+                "count": searchCount,
+                "result": searchList,
+                "code": 1,
                 "msg": "success"
             }
         except Exception as e:
@@ -475,24 +476,24 @@ class EsSearchService:
             }
         }
 
+        #  字段模糊查询（必须）
+        if "key" not in jsonParam or jsonParam["key"] is None or str(jsonParam["key"]).strip() == "":
+            return None
+        searchParam["query"]["bool"]["must"].append({
+            "query_string": {
+                "default_field": keyField,
+                "query": "*" + str(jsonParam["key"]) + "*"
+            }
+        })
+
         # 分页
         if "start" in jsonParam and "rows" in jsonParam and int(jsonParam["rows"]) > 0:
             searchParam["from"] = int(jsonParam["start"])
             size = int(jsonParam["rows"])
-            searchParam["size"] = size if size <= 500 else 500
-
-        #  字段模糊查询
-        if "key" in jsonParam and jsonParam["key"] is not None and str(jsonParam["key"]).strip() != "":
-            searchParam["query"]["bool"]["must"].append({
-                "query_string": {
-                    "default_field": keyField,
-                    # "query": "*" + str(jsonParam["key"]) + "*"
-                    "query": str(jsonParam["key"])
-                }
-            })
+            searchParam["size"] = size if size <= 50 else 50
 
         #  空间查询
-        if "point" in jsonParam and "radius" in jsonParam:
+        if "point" in jsonParam and "radius" in jsonParam and jsonParam["point"] is not None and jsonParam["radius"] is not None:
             points = str(jsonParam["point"]).split(" ")
             if len(points) == 2:
                 searchParam["query"]["bool"]["must"].append({
@@ -505,7 +506,7 @@ class EsSearchService:
                         }
                     }
                 })
-        elif "wkt" in jsonParam:
+        elif "wkt" in jsonParam and jsonParam["wkt"] is not None:
             geometry = loads(jsonParam["wkt"])
 
             points = []
@@ -524,3 +525,4 @@ class EsSearchService:
             })
 
         return searchParam
+

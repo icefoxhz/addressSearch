@@ -1,5 +1,6 @@
 import os
 import sys
+from time import sleep
 
 from pySimpleSpringFramework.spring_core.applicationStarter import ApplicationStarter
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import ComponentScan, ConfigDirectories
@@ -44,6 +45,7 @@ class ServiceApplication(ApplicationStarter):
     def main(self):
         self._application_environment = self.application_context.get_bean("applicationEnvironment")
         self._address_mapping = self.application_context.get_bean("addressMapping")
+        print("=============== 开始监控数据 ==============")
 
 
 def task_parse(start_row, end_row):
@@ -55,14 +57,25 @@ def task_parse(start_row, end_row):
 # def callback_function(future):
 #     future.result()
 
+min_batch = 50
+
 
 def parse_process(app):
+    data_count = app.get_parse_data_count()
+    if data_count == 0:
+        return
+
     executorTaskManager = app.application_context.get_bean("executorTaskManager")
     process_count = executorTaskManager.core_num
-    data_count = app.get_parse_data_count()
-    batch_size = data_count / process_count
-    batch_size = int(batch_size if data_count % process_count == 0 else batch_size + 1)
-    app.truncate_address_table()
+
+    if data_count <= min_batch * process_count:
+        process_count = int(data_count / min_batch if data_count % min_batch == 0 else data_count / min_batch + 1)
+        process_count = 1 if process_count == 0 else process_count
+        batch_size = int(data_count / process_count + 1)  # 直接 + 1 省的判断了
+    else:
+        batch_size = data_count / process_count
+        batch_size = int(batch_size if data_count % process_count == 0 else batch_size + 1)
+    # app.truncate_address_table()
 
     for i in range(process_count):
         start = i * batch_size
@@ -78,12 +91,11 @@ if __name__ == '__main__':
     serviceApplication = ServiceApplication()
     serviceApplication.run(True)
 
-    # ================= 解析
-    parse_process(serviceApplication)
+    while True:
+        # ================= 解析更新数据库
+        parse_process(serviceApplication)
+        # ================ 更新es库
+        serviceApplication.do_post_to_es()
+        sleep(5)
 
-    # ================ 入库es
-    # to_es_process(serviceApplication, count)
-    # 非cpu并发，线程即可
-    serviceApplication.do_post_to_es()
 
-    # print("=============== 完成 ================")

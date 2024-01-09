@@ -37,6 +37,11 @@ class ElasticsearchManger:
         conn.index(index=self.__indexName, body=data, doc_type="_doc", id=dataId)
         self.__local_obj.last_do_time = time.time()
 
+    def delete(self, dataId):
+        conn = self._get_conn()
+        conn.delete(index=self.__indexName, doc_type="_doc", id=dataId)
+        self.__local_obj.last_do_time = time.time()
+
     def __conn(self):
         if hasattr(self.__local_obj, "es_conn") and self.__local_obj.es_conn is not None:
             if self.is_time_out():
