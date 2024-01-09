@@ -54,12 +54,6 @@ def task_parse(start_row, end_row):
     app.do_parse_table(start_row, end_row)
 
 
-# def callback_function(future):
-#     future.result()
-
-min_batch = 50
-
-
 def parse_process(app):
     data_count = app.get_parse_data_count()
     if data_count == 0:
@@ -68,6 +62,7 @@ def parse_process(app):
     executorTaskManager = app.application_context.get_bean("executorTaskManager")
     process_count = executorTaskManager.core_num
 
+    min_batch = 50
     if data_count <= min_batch * process_count:
         process_count = int(data_count / min_batch if data_count % min_batch == 0 else data_count / min_batch + 1)
         process_count = 1 if process_count == 0 else process_count
@@ -97,5 +92,3 @@ if __name__ == '__main__':
         # ================ 更新es库
         serviceApplication.do_post_to_es()
         sleep(5)
-
-
