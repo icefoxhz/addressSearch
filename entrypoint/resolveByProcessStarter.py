@@ -22,6 +22,7 @@ sys.path.append(root_model_path)
 class ServiceApplication(ApplicationStarter):
     def __init__(self):
         super().__init__()
+        self._address_table = None
         self._address_mapping = None
         self._application_environment = None
 
@@ -30,9 +31,13 @@ class ServiceApplication(ApplicationStarter):
         self._address_mapping.truncate_table(parsed_address_table)
 
     def get_parse_data_count(self):
-        table = self._application_environment.get("project.tables.address_table")
-        data = self._address_mapping.get_data_count(table)
+        self._address_table = self._application_environment.get("project.tables.address_table")
+        data = self._address_mapping.get_data_count(self._address_table)
         return data.iloc[0, 0]
+
+    def set_all_waiting_completed(self):
+        # 防止 flag=8的没更新， 每次启动先把 flag=8 的更新成 9
+        self._address_mapping.set_all_waiting_completed(self._address_table)
 
     def do_parse_table(self, start_row, end_row):
         service = self.application_context.get_bean("resolveToDBService")
@@ -45,7 +50,6 @@ class ServiceApplication(ApplicationStarter):
     def main(self):
         self._application_environment = self.application_context.get_bean("applicationEnvironment")
         self._address_mapping = self.application_context.get_bean("addressMapping")
-        print("=============== 开始监控数据 ==============")
 
 
 def task_parse(start_row, end_row):
@@ -56,6 +60,7 @@ def task_parse(start_row, end_row):
 
 def parse_process(app):
     data_count = app.get_parse_data_count()
+    app.set_all_waiting_completed()
     if data_count == 0:
         return
 

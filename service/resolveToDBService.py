@@ -116,7 +116,7 @@ class ResolveToDBService:
             if len(data_insert) > 0:
                 self._do_parsed_result(data=data_insert)
                 for tId in ids_insert:
-                    self._addressMapping.set_completed(self._address_table, tId)
+                    self._addressMapping.set_waiting_completed(self._address_table, tId)
 
             # 修改
             if len(data_modify) > 0:
@@ -125,13 +125,13 @@ class ResolveToDBService:
                 self._do_parsed_result(data=data_modify)
 
                 for tId in ids_update:
-                    self._addressMapping.set_completed(self._address_table, tId)
+                    self._addressMapping.set_waiting_completed(self._address_table, tId)
 
             # 删除
             if len(ids_delete) > 0:
                 for tId in ids_delete:
                     self._addressMapping.set_deleted(self._parsed_address_table, tId)
-                    self._addressMapping.set_completed(self._address_table, tId)
+                    self._addressMapping.set_waiting_completed(self._address_table, tId)
 
         if progress_bar is not None:
             progress_bar.update(len(df))
@@ -167,21 +167,29 @@ class ResolveToDBService:
         start = start_row
         end = end_row
         try:
+            page_size = self._batch_size
             while True:
-                page_size = self._batch_size
-                not_do_count = end - start
-                if self._batch_size > not_do_count:
-                    page_size = not_do_count
+                # 保证不会多查数据
+                remain_size = end - start
+                if remain_size < 0:
+                    break
+
+                page_size = remain_size if page_size > remain_size else page_size
 
                 df = self._addressMapping.get_address_data(self._address_table, page_size, start)
                 if df is None or len(df) == 0:
                     break
                 self._self.do_run(df, progress_bar)
-                start += self._batch_size
+                start += page_size
 
                 if start >= end:
                     break
+
+            # 把完成的状态更新  flag=9
+            self._addressMapping.set_all_waiting_completed(self._address_table)
+            progress_bar.close()
         except Exception as e:
+            print(str(e))
             log.error(str(e))
 
     # def callback_function(self, future):

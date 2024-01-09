@@ -28,6 +28,16 @@ class AddressMapping:
     def set_completed(self, table, table_id):
         pass
 
+    # 分页过程中更新成flag=9会导致分页查询有问题，因为查的是 flag !=9的，所以先更新成中间状态，即 flag=8
+    @Update("update #{table} set flag=8 where id=#{table_id}")
+    def set_waiting_completed(self, table, table_id):
+        pass
+
+    # 把中间状态的更新成完成
+    @Update("update #{table} set flag=9 where flag=8")
+    def set_all_waiting_completed(self, table):
+        pass
+
     @Update("update #{table} set flag=0 where id=#{table_id}")
     def set_inserted(self, table, table_id):
         pass

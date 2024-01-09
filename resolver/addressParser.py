@@ -113,7 +113,7 @@ class AddressParser:
 
         # 单个的结果
         self._result = {
-            "fullName": None,
+            "fullname": None,
             "province": self._province,
             "city":  self._city,
             "region": None,

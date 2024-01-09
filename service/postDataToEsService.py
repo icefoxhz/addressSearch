@@ -1,9 +1,9 @@
 import time
+from datetime import datetime
 
 import pandas as pd
 from pySimpleSpringFramework.spring_core.log import log
 from pySimpleSpringFramework.spring_core.task.executorTaskManager import ExecutorTaskManager
-# from pySimpleSpringFramework.spring_core.task.annoation.taskAnnotation import Sync, WaitForAllCompleted
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value, Autowired
 from pySimpleSpringFramework.spring_core.type.annotationType import Propagation
@@ -185,15 +185,24 @@ class PostDataToEsService:
                                         desc="从解析表读取数据后写入到ElasticSearch库, 当前完成 ", unit=" 条")
 
                 future = self._executorTaskManager.submit(self._self.do_run,
-                                                 False,
-                                                 self.callback_function,
-                                                 df,
-                                                 progress_bar)
+                                                          False,
+                                                          self.callback_function,
+                                                          df,
+                                                          progress_bar)
                 futures.append(future)
                 page += 1
             self._executorTaskManager.waitUntilComplete(futures)
+            if progress_bar is not None:
+                progress_bar.close()
+
+            if len(futures) > 0:
+                print("======= {} 本次操作完成 =======\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+            futures.clear()
+
             return True
         except Exception as e:
+            print(str(e))
             log.error(str(e))
 
         return False
