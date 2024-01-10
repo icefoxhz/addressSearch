@@ -1,10 +1,13 @@
 import os
 import collections
 import threading
+import uuid
 
 from LAC import LAC
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component, Scope
-from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value
+from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value, Autowired
+
+from addressSearch.mapping.addressMapping import AddressMapping
 
 
 @Component
@@ -13,13 +16,18 @@ class LacModelManager:
 
     @Value({
         "lac.model_path": "_model_path",
-        "lac.dict_path": "_dict_path",
+        "lac.dict_dir": "_dict_dir",
         "task.execution.pool.max_size": "_max_size",
+        "project.tables.dict_word_table": "_dict_word_table",
     })
     def __init__(self):
         self._model_path = None
         self._dict_path = None
         self._max_size = None
+        self._dict_word_table = None
+        self._dict_dir = None
+        self._dict_path = None
+        self._addressMapping = None
 
         self._workDir = os.path.abspath('.')
         self._currentDir = os.path.dirname(__file__)
@@ -27,7 +35,24 @@ class LacModelManager:
         self._lock = threading.Lock()
         self.__q = collections.deque()
 
+    @Autowired
+    def _set_params(self, addressMapping: AddressMapping):
+        self._addressMapping = addressMapping
+
+    def _generateDict(self):
+        self._dict_path = self._dict_dir + os.sep + "custom_" + str(uuid.uuid4()) + ".txt"
+        # 判断文件是否存在
+        if not os.path.exists(self._dict_path):
+            # 如果文件不存在，则创建文件
+            with open(self._dict_path, 'w'):
+                pass
+
+        data = self._addressMapping.get_address_dict(self._dict_word_table)
+        data["dict_value"].to_csv(self._dict_path, index=False, header=False)
+        print("===== 重新下载分词字典完成 =====")
+
     def _after_init(self):
+        self._generateDict()
         for _ in range(self._max_size + 1):
             self.__q.append(self.__generateModel())
 

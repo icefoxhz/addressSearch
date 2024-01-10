@@ -34,22 +34,29 @@ class AddressParseRunner:
         "project.print_debug": "_print_debug",
         "DROP_WORDS": "_drop_words",
         "NUM_JOIN_SYMBOLS": "_num_join_symbols",
+        "JUDGE_JOIN_WORDS": "_judge_join_words",
 
     })
     def __init__(self):
         self._print_debug = False
         self._drop_words = None
         self._num_join_symbols = None
+        self._judge_join_words = []
 
     def run(self, address_parser, model, full_name, x=None, y=None):
         if model is None:
             raise Exception("分词模块实例为null")
 
-        cutResult = model.run(full_name)
+        cutResults = model.run(full_name)
+
+        wordList = cutResults[0]
+        wordLacList = cutResults[1]
+
+        # 2024-1-10 新加
+        wordList, wordLacList = self._do_again(model, wordLacList, wordList)
+
         if self._print_debug:
-            log.debug("py库分词结果: " + str(cutResult))
-        wordList = cutResult[0]
-        wordLacList = cutResult[1]
+            log.debug("py库分词结果: " + str(wordList) + " " + str(wordLacList))
 
         # 数字处理
         self._changeWord(wordList, wordLacList)
@@ -68,6 +75,36 @@ class AddressParseRunner:
 
         return address_parser.parse(), wordListStr
         # return None, None
+
+    def _do_again(self, model, wordLacList, wordList):
+        # 分词之后的词判断是否要再次分词，比如： 万裕苑二期 ，要再次分词成： 万裕苑  二期
+        wordListNew = []
+        wordLacListNew = []
+        for i in range(len(wordList)):
+            word = wordList[i]
+            wordLac = wordLacList[i]
+
+            # 小于3个字符的或者首字符就是数字的跳过
+            if len(word) <= 2 or word[0] in _numDict.keys() or word[0] in _numDict.values():
+                wordListNew.append(word)
+                wordLacListNew.append(wordLac)
+                continue
+
+            lastWord = word[-1]
+            if lastWord in self._judge_join_words and (word[-2] in _numDict.keys() or word[-2] in _numDict.values()):
+                for k, v in _numDict.items():
+                    word = str(word).replace(k, v)
+                cutResultsNew = model.run(word)
+                wordListTmp = cutResultsNew[0]
+                wordLacListTmp = cutResultsNew[1]
+
+                wordListNew = wordListNew + wordListTmp
+                wordLacListNew = wordLacListNew + wordLacListTmp
+                continue
+
+            wordListNew.append(word)
+            wordLacListNew.append(wordLac)
+        return wordListNew, wordLacListNew
 
     def _changeWord(self, wordList, wordLacList):
         """

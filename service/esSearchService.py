@@ -109,6 +109,7 @@ class EsSearchService:
                 i = 1
                 for address in fullNameAllList:
                     addressParser = self._applicationContext.get_bean("addressParser")
+                    address = address.replace(" ", "")
                     resultList, _ = self._addressParseRunner.run(addressParser, model, address)
                     resultDict[str(dataId) + "^" + str(i)] = resultList
                     i += 1
@@ -272,12 +273,9 @@ class EsSearchService:
         ct, param = self.__paramCommon(isAccurate, parseResultValue, vDict, self._matchSectionListFront, True,
                                        match_percent)
 
-        # 几个词以内必须全匹配。 有region的话，要 +1， 因为region是稳的
-        lessCount = 3
-        # if "region" in parseResultValue.keys():
-        #     lessCount += 1
-        if ct <= lessCount:
-            param["bool"]["minimum_should_match"] = "100%"
+        # 2个词以内必须全匹配
+        # if ct <= 2:
+        #     param["bool"]["minimum_should_match"] = "100%"
 
         if ct > 0:
             rtn["query"]["bool"]["must"].append(param)
@@ -288,7 +286,8 @@ class EsSearchService:
         if ct > 0:
             rtn["query"]["bool"]["must"].append(param)
 
-    def __paramCommon(self, isAccurate, parseResultValue, vDict, sectionList, isFront=False, match_percent="100%"):
+    @staticmethod
+    def __paramCommon(isAccurate, parseResultValue, vDict, sectionList, isFront=False, match_percent="100%"):
         """
         :param isAccurate:
         :param parseResultValue:

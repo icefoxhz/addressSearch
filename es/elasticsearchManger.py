@@ -39,7 +39,8 @@ class ElasticsearchManger:
 
     def delete(self, dataId):
         conn = self._get_conn()
-        conn.delete(index=self.__indexName, doc_type="_doc", id=dataId)
+        if conn.exists(index=self.__indexName, doc_type="_doc", id=dataId):
+            conn.delete(index=self.__indexName, doc_type="_doc", id=dataId)
         self.__local_obj.last_do_time = time.time()
 
     def __conn(self):

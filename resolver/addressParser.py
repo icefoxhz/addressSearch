@@ -51,7 +51,7 @@ class AddressParser:
         }
     )
     def __init__(self):
-        self._print_debug = None
+        self._print_debug = False
         self._judge_has_words = None
         self._province = None
         self._city = None
@@ -1145,5 +1145,5 @@ class AddressParser:
 
         if self._print_debug:
             for result in self._resultList:
-                log.debug("解析结果: " + str(result))
+                print("解析结果: " + str(result))
         return self._resultList

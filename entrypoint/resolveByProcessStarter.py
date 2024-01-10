@@ -5,6 +5,8 @@ from time import sleep
 from pySimpleSpringFramework.spring_core.applicationStarter import ApplicationStarter
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import ComponentScan, ConfigDirectories
 
+from addressSearch.utils.Util import delete_old_files
+
 # 把父目录放入path， 父目录就是包。 这个需要自己调整
 root_model_path = os.path.dirname(os.path.dirname(os.getcwd()))
 sys.path.append(root_model_path)
@@ -26,6 +28,10 @@ class ServiceApplication(ApplicationStarter):
         self._address_parsed_table = None
         self._address_mapping = None
         self._application_environment = None
+
+    def clearLacCustomDict(self):
+        dict_dir = self._application_environment.get("lac.dict_dir")
+        delete_old_files(dict_dir)
 
     def truncate_address_table(self):
         parsed_address_table = self._application_environment.get("project.tables.parsed_address_table")
@@ -105,6 +111,7 @@ if __name__ == '__main__':
     serviceApplication = ServiceApplication()
     serviceApplication.run(True)
 
+    serviceApplication.clearLacCustomDict()
     serviceApplication.set_all_waiting_completed()
 
     while True:

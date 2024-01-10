@@ -80,12 +80,15 @@ class ResolveToDBService:
             data_modify = []
 
             for _, row in df.iterrows():
-                flag = int(row["flag"])
+                flag = int(row["op_flag"])
+                is_del = int(row["is_del"])
 
                 t_id = row["id"]
-
                 if flag == DBOperator.INSERT.value:
-                    ids_insert.append(t_id)
+                    if is_del == 1:  # 删除后重新新增实际是更新
+                        ids_update.append(t_id)
+                    else:
+                        ids_insert.append(t_id)
                 elif flag == DBOperator.UPDATE.value:
                     ids_update.append(t_id)
                 elif flag == DBOperator.DELETE.value:
@@ -100,13 +103,15 @@ class ResolveToDBService:
                 address_parser = self._applicationContext.get_bean("addressParser")
                 resultList, cutListStr = self._addressParseRunner.run(address_parser, model, full_name, x, y)
                 for result in resultList:
-                    result["flag"] = flag
+                    result["op_flag"] = flag
                     result["id"] = t_id
                     result["fullname"] = full_name
                     result["parseResult"] = cutListStr
-                    # print(result)
                     if flag == DBOperator.INSERT.value:
-                        data_insert.append(result)
+                        if is_del == 1:  # 删除后重新新增实际是更新
+                            data_modify.append(result)
+                        else:
+                            data_insert.append(result)
                     if flag == DBOperator.UPDATE.value:
                         data_modify.append(result)
 
@@ -114,7 +119,7 @@ class ResolveToDBService:
             if len(data_insert) > 0:
                 self._do_parsed_result(data=data_insert)
                 for tId in ids_insert:
-                    self._addressMapping.set_waiting_completed(self._address_table, tId)
+                    self._addressMapping.set_notDelete_and_waiting_completed(self._address_table, tId)
 
             # 修改
             if len(data_modify) > 0:
@@ -123,13 +128,13 @@ class ResolveToDBService:
                 self._do_parsed_result(data=data_modify)
 
                 for tId in ids_update:
-                    self._addressMapping.set_waiting_completed(self._address_table, tId)
+                    self._addressMapping.set_notDelete_and_waiting_completed(self._address_table, tId)
 
             # 删除
             if len(ids_delete) > 0:
                 for tId in ids_delete:
                     self._addressMapping.set_deleted(self._parsed_address_table, tId)
-                    self._addressMapping.set_waiting_completed(self._address_table, tId)
+                    self._addressMapping.set_delete_and_waiting_completed(self._address_table, tId)
 
         if progress_bar is not None:
             progress_bar.update(len(df))
@@ -183,7 +188,7 @@ class ResolveToDBService:
                 if start >= end:
                     break
 
-            # 把完成的状态更新  flag=9
+            # 把完成的状态更新  op_flag=9
             self._addressMapping.set_all_waiting_completed(self._address_table)
             progress_bar.close()
         except Exception as e:

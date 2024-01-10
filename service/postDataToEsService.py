@@ -48,57 +48,7 @@ class PostDataToEsService:
         self._self = postDataToEsService
         self._executorTaskManager = executorTaskManager
 
-    # def do_run(self, df, progress_bar=None):
-    #     df.columns = df.columns.str.lower()
-    #
-    #     es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
-    #     for row in df.itertuples():
-    #         try:
-    #             data_dict = {
-    #                 "id": row.id if hasattr(row, 'id') else None,
-    #                 "fullname": row.fullname if hasattr(row, 'fullname') else None,
-    #                 "province": row.province if hasattr(row, 'province') else None,
-    #                 "city": row.city if hasattr(row, 'city') else None,
-    #                 "region": row.region if hasattr(row, 'region') else None,
-    #                 "street": row.street if hasattr(row, 'street') else None,
-    #                 "community": row.community if hasattr(row, 'community') else None,
-    #                 "group_number": row.group_number if hasattr(row, 'group_number') else None,
-    #                 "natural_village": row.natural_village if hasattr(row, 'natural_village') else None,
-    #                 "road": row.road if hasattr(row, 'road') else None,
-    #                 "address_number": row.address_number if hasattr(row, 'address_number') else None,
-    #                 "building_site": row.building_site if hasattr(row, 'building_site') else None,
-    #                 "unit": row.unit if hasattr(row, 'unit') else None,
-    #                 "floor": row.floor if hasattr(row, 'floor') else None,
-    #                 "room": row.room if hasattr(row, 'room') else None,
-    #                 "courtyard": row.courtyard if hasattr(row, 'courtyard') else None,
-    #                 "building_name": row.building_name if hasattr(row, 'building_name') else None,
-    #                 "company": row.company if hasattr(row, 'company') else None,
-    #                 "location":
-    #                     {
-    #                         "lat": float(row.y) if hasattr(row, 'y') else None,
-    #                         "lon": float(row.x) if hasattr(row, 'x') else None
-    #                     }
-    #                     if row.x is not None and row.y is not None and row.x != "" and row.y != ""
-    #                     else None
-    #             }
-    #
-    #             # 去掉无值字段
-    #             delKeyList = []
-    #             for k, v in data_dict.items():
-    #                 if v is None or str(v) == "":
-    #                     delKeyList.append(k)
-    #
-    #             for k in delKeyList:
-    #                 del data_dict[k]
-    #
-    #             # 入库
-    #             es.insert(row.id, data_dict)
-    #         except Exception as e:
-    #             log.error(str(e))
-    #
-    #     if progress_bar is not None:
-    #         progress_bar.update(len(df))
-
+    @Transactional()
     def do_run(self, df, progress_bar=None):
         df.columns = df.columns.str.lower()
 
@@ -106,7 +56,7 @@ class PostDataToEsService:
 
         ids = []
         for row in df.itertuples():
-            flag = int(getattr(row, "flag"))
+            flag = int(getattr(row, "op_flag"))
 
             dataId = getattr(row, "id")
             ids.append(dataId)
@@ -116,6 +66,7 @@ class PostDataToEsService:
                 es.delete(dataId)
                 continue
 
+            # 新增或更新
             if flag == DBOperator.INSERT.value or flag == DBOperator.UPDATE.value:
                 # 新增 和 修改 是一样的
                 data_dict = {}
@@ -191,12 +142,12 @@ class PostDataToEsService:
                 page += 1
             self._executorTaskManager.waitUntilComplete(futures)
 
-            # 把完成的状态更新  flag=9
+            # 把完成的状态更新  op_flag=9
             self._addressMapping.set_all_waiting_completed(self._parsed_address_table)
 
             progress_bar.close()
             if len(futures) > 0:
-                print("======= {} 本次操作完成 =======\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                print("========== {} 本次操作完成 ==========\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             futures.clear()
 
             return True
