@@ -187,6 +187,9 @@ class EsSearchService:
                 #     searchResultAll[str(dataId)] = val
                 #     continue
 
+            if len(searchResultAll[dataId]) == 0:
+                searchResultAll[dataId] = None
+
         return succeed, searchResultAll
 
     def searchCutBack(self, cutBackList, isAccurate, resultDict):
@@ -419,7 +422,7 @@ class EsSearchService:
                 if val is not None and len(str(val)) > 0:
                     searchResultAll[dataId] = val
                 else:
-                    searchResultAll[dataId] = ""
+                    searchResultAll[dataId] = None
         return searchResultAll
 
     def commonSearch(self, jsonParam):

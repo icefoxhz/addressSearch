@@ -16,9 +16,26 @@ RE_DO_REPLACE_SYMBOLS = {
 }
 
 
-def do_search(esSearchService, resultListDict):
+def genRestResult(resultDict, error):
+    result = {
+        "msg": str(error),
+        "result": {},
+        "code": 0
+    }
+
+    if error is None or str(error) == "":
+        result["msg"] = "success"
+        result["result"] = resultDict
+        result["code"] = 1
+
+    # return json.dumps(result, ensure_ascii=False)
+    return result
+
+
+def __do_search(esSearchService, resultListDict):
     result = {}
     succeed = False
+    error = None
     try:
         isAccurate_list = [True, False]
         for isAccurate in isAccurate_list:
@@ -26,8 +43,9 @@ def do_search(esSearchService, resultListDict):
             if succeed:
                 break
     except Exception as e:
+        error = str(e)
         log.error("searchByAddress error =>" + str(e))
-    return result, succeed
+    return result, succeed, error
 
 
 @rest_app.post("/searchByAddress")
@@ -48,7 +66,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     resultListDict = esSearchService.parse(jsonRequest)
 
-    result, succeed = do_search(esSearchService, resultListDict)
+    result, succeed, error = __do_search(esSearchService, resultListDict)
     if not succeed:
         should_do = False
         for symbol, v in RE_DO_REPLACE_SYMBOLS.items():
@@ -57,20 +75,9 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
                     jsonRequest[idx] = address.replace(symbol, v)
                     should_do = True
         if should_do:
-            result, succeed = do_search(esSearchService, resultListDict)
+            result, succeed, error = __do_search(esSearchService, resultListDict)
 
-    return result
-
-
-def genRestResult(result):
-    for k, v in result.items():
-        result[k] = {
-            "msg": "nothing" if v == "" or v is None or len(v) == 0 else "success",
-            "data": {} if v == "" or v is None or len(v) == 0 else v,
-            "code": 404 if v == "" or v is None or len(v) == 0 else 200
-        }
-
-    return json.dumps(result, ensure_ascii=False)
+    return genRestResult(result, error)
 
 
 @rest_app.post("/searchByPoint")
@@ -87,16 +94,19 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     :return:
     """
     result = {}
+    error = None
     try:
         # 这里是获取bean的例子
         esSearchService = serviceApplication.application_context.get_bean("esSearchService")
         result = esSearchService.searchByPoint(jsonRequest)
     except Exception as e:
+        error = str(e)
         log.error("searchByAddress error =>" + str(e))
 
-    return genRestResult(result)
+    return genRestResult(result, error)
 
 
+# 新加
 @rest_app.post("/search")
 async def appSearchByAddress(request: Request):
     result = {}
@@ -108,10 +118,7 @@ async def appSearchByAddress(request: Request):
         result = esSearchService.commonSearch(jsonParam=jsonRequest)
     except Exception as e:
         log.error("searchByAddress error =>" + str(e))
-        result["msg"] = str(e)
-        result["code"] = 500
 
-    # return json.dumps(result, ensure_ascii=False)
     return result
 
 
