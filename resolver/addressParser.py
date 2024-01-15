@@ -679,6 +679,37 @@ class AddressParser:
 
         self._replaceSymbol()
 
+        self._parseAddressNumberAgain()
+
+    def _parseAddressNumberAgain(self):
+        """
+        group_number 或 address_number 类似是 70-62 这种，要再次判断是否要解析到 address_number 和 building_site。
+        例子： 无锡市新吴区梅村街道泰伯花苑第一社区新友北路70－62号
+        :return:
+        """
+        judgeList = ["address_number", "building_name", "building_site", "unit", "floor", "room", "company"]
+        self.__resolveAgainIfNecessary("group_number", judgeList)
+
+        judgeList = ["building_name", "building_site", "unit", "floor", "room", "company"]
+        self.__resolveAgainIfNecessary("address_number", judgeList)
+
+    def __resolveAgainIfNecessary(self, judgeKey, judgeList):
+        symbol = "-"
+        for result in self._resultList:
+            if judgeKey in result.keys():
+                address_number = result[judgeKey]
+                if symbol in address_number:
+                    flag = True
+                    for key in judgeList:
+                        if key in result.keys():
+                            flag = False
+                            break
+
+                    if flag:
+                        split = address_number.split(symbol)
+                        result["address_number"] = split[0]
+                        result["building_site"] = split[1]
+
     def _parseRoomsIfMulti(self):
         """
         判断有没有 MULTI_JOIN_SYMBOLS.  获取多个门牌/室

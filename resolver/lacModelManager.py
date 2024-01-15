@@ -49,7 +49,7 @@ class LacModelManager:
 
         data = self._addressMapping.get_address_dict(self._dict_word_table)
         data["dict_value"].to_csv(self._dict_path, index=False, header=False)
-        print("===== 重新下载分词字典完成 =====")
+        # print("===== 重新下载分词字典完成 =====")
 
     def _after_init(self):
         self._generateDict()
