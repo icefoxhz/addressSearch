@@ -122,7 +122,7 @@ class EsSearchService:
             if key in dict(resultDict).keys():
                 resultDict.pop(key)
 
-    def searchByAddress(self, resultListDict, isAccurate=True):
+    def searchByAddress(self, resultListDict, isAccurate=True, returnMulti=False):
         """
          {
             "1": "无锡市惠山区洛社镇五秦村强巷52号",
@@ -134,6 +134,7 @@ class EsSearchService:
         通过地名地址匹配
         :param resultListDict:
         :param isAccurate:   是否精准匹配
+        :param returnMulti:  是否返回多条
         :return:
         """
         succeed = False
@@ -161,7 +162,7 @@ class EsSearchService:
                     if self._print_debug:
                         print(">>>>>>>>>> 全匹配({}) <<<<<<<<<<".format("精准" if isAccurate else "模糊"))
                         print("searchParam = ", searchParam)
-                    val = self._doAddressSearch(searchParam, self._searchMain)
+                    val = self._doAddressSearch(searchParam, self._searchMain, returnMulti)
 
                     if val is not None and val != "" and len(val) > 0:
                         searchResultAll[str(dataId)] = val
@@ -174,7 +175,7 @@ class EsSearchService:
 
                 # 低精度下， 能后面匹配到就用后面的
                 # 第1次去除back后匹配
-                val = self.searchCutBack(self._matchSectionListBackFirst, isAccurate, resultDict)
+                val = self.searchCutBack(self._matchSectionListBackFirst, isAccurate, resultDict, returnMulti)
                 if val is not None and val != "" and len(val) > 0:
                     searchResultAll[str(dataId)] = val
                     succeed = True
@@ -192,7 +193,7 @@ class EsSearchService:
 
         return succeed, searchResultAll
 
-    def searchCutBack(self, cutBackList, isAccurate, resultDict):
+    def searchCutBack(self, cutBackList, isAccurate, resultDict, returnMulti=False):
         val = None
         resultDictTemp = deepcopy(resultDict)
         oldLen = len(resultDict)
@@ -210,10 +211,10 @@ class EsSearchService:
             if self._print_debug:
                 print(">>>>>>>>>> 去除back后匹配({}) <<<<<<<<<<".format("精准" if isAccurate else "模糊"))
                 print("searchParam = ", searchParam)
-            val = self._doAddressSearch(searchParam, self._searchMain)
+            val = self._doAddressSearch(searchParam, self._searchMain, returnMulti)
         return val
 
-    def _doAddressSearch(self, searchParam, es):
+    def _doAddressSearch(self, searchParam, es, returnMulti=False):
         searchResult = es.query(searchParam)
         searchCount = int(searchResult.get("hits").get("total").get("value"))
         val = []
@@ -229,6 +230,9 @@ class EsSearchService:
 
                 if len(val) >= self._max_return or item.get("_score") < maxScore:
                     break
+
+        if returnMulti:
+            return val
 
         rtnVal = ""
         # 找到多个的情况下， 取最短的那个
@@ -367,17 +371,24 @@ class EsSearchService:
         geo2 = wkt.loads("point({} {})".format(x2, y2))
         return geo1.distance(geo2)
 
-    def _doLocationSearch(self, searchParam, es):
+    def _doLocationSearch(self, searchParam, es, returnMulti=False):
         searchResult = es.query(searchParam)
         searchCount = int(searchResult.get("hits").get("total").get("value"))
         items = searchResult.get("hits").get("hits")
 
-        val = ""
         if self._print_debug:
             print("找到数量 = ", searchCount)
+
+        if returnMulti:
+            val = []
+            for item in items:
+                val.append(item.get("_source"))
+            return val
+
         if searchCount == 1:
             return items[0].get("_source")
 
+        val = ""
         if searchCount > 1:
             # 取距离最近的
             location_o = searchParam.get("query").get("geo_distance").get("location")
@@ -398,7 +409,7 @@ class EsSearchService:
             return items[idx].get("_source")
         return val
 
-    def searchByPoint(self, jsonParam):
+    def searchByPoint(self, jsonParam, returnMulti=False):
         """
         {
             "1": "119.87630533652268,31.31180405900834",
@@ -418,7 +429,7 @@ class EsSearchService:
         SearchParamList = self._genLocationSearchParam(jsonParamData)
         for param in SearchParamList:
             for dataId, searchParam in param.items():
-                val = self._doLocationSearch(searchParam, self._searchMain)
+                val = self._doLocationSearch(searchParam, self._searchMain, returnMulti)
                 if val is not None and len(str(val)) > 0:
                     searchResultAll[dataId] = val
                 else:
@@ -495,7 +506,8 @@ class EsSearchService:
             searchParam["size"] = size if size <= 50 else 50
 
         #  空间查询
-        if "point" in jsonParam and "radius" in jsonParam and jsonParam["point"] is not None and jsonParam["radius"] is not None:
+        if "point" in jsonParam and "radius" in jsonParam and jsonParam["point"] is not None and jsonParam[
+            "radius"] is not None:
             points = str(jsonParam["point"]).split(" ")
             if len(points) == 2:
                 searchParam["query"]["bool"]["must"].append({
@@ -527,4 +539,3 @@ class EsSearchService:
             })
 
         return searchParam
-
