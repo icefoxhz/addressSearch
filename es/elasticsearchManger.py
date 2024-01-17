@@ -34,13 +34,13 @@ class ElasticsearchManger:
     # noinspection PyUnusedLocal
     def insert(self, dataId, data):
         conn = self._get_conn()
-        conn.index(index=self.__indexName, body=data, doc_type="_doc", id=dataId)
+        conn.index(index=self.__indexName, body=data, id=dataId)
         self.__local_obj.last_do_time = time.time()
 
     def delete(self, dataId):
         conn = self._get_conn()
-        if conn.exists(index=self.__indexName, doc_type="_doc", id=dataId):
-            conn.delete(index=self.__indexName, doc_type="_doc", id=dataId)
+        if conn.exists(index=self.__indexName, id=dataId):
+            conn.delete(index=self.__indexName, id=dataId)
         self.__local_obj.last_do_time = time.time()
 
     def __conn(self):
@@ -95,4 +95,4 @@ class ElasticsearchManger:
     def query(self, jsonQuery):
         conn = self._get_conn()
         self.__local_obj.last_do_time = time.time()
-        return conn.search(body=jsonQuery, index=self.__indexName, doc_type="_doc")
+        return conn.search(body=jsonQuery, index=self.__indexName)
