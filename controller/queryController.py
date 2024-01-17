@@ -16,7 +16,7 @@ RE_DO_REPLACE_SYMBOLS = {
 }
 
 
-def genRestResult(resultDict, error):
+def _genRestResult(resultDict, error):
     result = {
         "msg": str(error),
         "result": {},
@@ -32,7 +32,7 @@ def genRestResult(resultDict, error):
     return result
 
 
-def __do_search(esSearchService, resultListDict, returnMulti=False):
+def _doSearch(esSearchService, resultListDict, returnMulti=False):
     result = {}
     succeed = False
     error = None
@@ -48,11 +48,11 @@ def __do_search(esSearchService, resultListDict, returnMulti=False):
     return result, succeed, error
 
 
-def doSearchByAddress(jsonRequest, returnMulti=False):
+def _doSearchByAddress(jsonRequest, returnMulti=False):
     # 这里是获取bean的例子
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     resultListDict = esSearchService.parse(jsonRequest)
-    result, succeed, error = __do_search(esSearchService, resultListDict, returnMulti)
+    result, succeed, error = _doSearch(esSearchService, resultListDict, returnMulti)
     if not succeed:
         should_do = False
         for symbol, v in RE_DO_REPLACE_SYMBOLS.items():
@@ -61,11 +61,11 @@ def doSearchByAddress(jsonRequest, returnMulti=False):
                     jsonRequest[idx] = address.replace(symbol, v)
                     should_do = True
         if should_do:
-            result, succeed, error = __do_search(esSearchService, resultListDict, returnMulti)
-    return genRestResult(result, error)
+            result, succeed, error = _doSearch(esSearchService, resultListDict, returnMulti)
+    return _genRestResult(result, error)
 
 
-def doSearchByPoint(jsonRequest, returnMulti=False):
+def _doSearchByPoint(jsonRequest, returnMulti=False):
     result = {}
     error = None
     try:
@@ -75,7 +75,7 @@ def doSearchByPoint(jsonRequest, returnMulti=False):
     except Exception as e:
         error = str(e)
         log.error("searchByAddress error =>" + str(e))
-    return genRestResult(result, error)
+    return _genRestResult(result, error)
 
 
 @rest_app.post("/searchByAddress")
@@ -92,7 +92,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     :param jsonRequest:
     :return:
     """
-    return doSearchByAddress(jsonRequest, False)
+    return _doSearchByAddress(jsonRequest, False)
 
 
 @rest_app.post("/searchByAddressEx")
@@ -109,7 +109,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     :param jsonRequest:
     :return:
     """
-    return doSearchByAddress(jsonRequest, True)
+    return _doSearchByAddress(jsonRequest, True)
 
 
 @rest_app.post("/searchByPoint")
@@ -125,7 +125,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     :param jsonRequest:
     :return:
     """
-    return doSearchByPoint(jsonRequest, False)
+    return _doSearchByPoint(jsonRequest, False)
 
 
 @rest_app.post("/searchByPointEx")
@@ -141,7 +141,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     :param jsonRequest:
     :return:
     """
-    return doSearchByPoint(jsonRequest, True)
+    return _doSearchByPoint(jsonRequest, True)
 
 
 # 新加
