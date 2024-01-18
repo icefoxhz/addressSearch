@@ -8,11 +8,11 @@ class AddressMapping:
     def get_address_dict(self, table):
         pass
 
-    @Select("select id, address as fullname, x, y, op_flag, is_del from #{table} where op_flag!=9 limit #{page_size} offset #{offset}")
+    @Select("select id, address as fullname, x, y, op_flag, is_del from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
     def get_address_data(self, table, page_size, offset):
         pass
 
-    @Select("select * from #{table} where op_flag!=9 limit #{page_size} offset #{offset}")
+    @Select("select * from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
     def get_parsed_data(self, table, page_size, offset):
         pass
 

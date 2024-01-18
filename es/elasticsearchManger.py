@@ -31,7 +31,7 @@ class ElasticsearchManger:
         sec = time_difference.total_seconds()
         return sec > self.__CONN_TIME_OUT
 
-    # noinspection PyUnusedLocal
+    # noinspection PyUnusedLocal,PyArgumentList
     def insert(self, dataId, data):
         conn = self._get_conn()
         conn.index(index=self.__indexName, body=data, id=dataId)

@@ -109,7 +109,7 @@ if __name__ == '__main__':
     print("root_model_path=", root_model_path)
 
     serviceApplication = ServiceApplication()
-    serviceApplication.run(True)
+    serviceApplication.run(debug=True)
 
     serviceApplication.clearLacCustomDict()
     serviceApplication.set_all_waiting_completed()

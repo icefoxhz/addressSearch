@@ -489,13 +489,27 @@ class EsSearchService:
             }
         }
 
+        searchKey = str(jsonParam["key"]).strip()
+
         #  字段模糊查询（必须）
-        if "key" not in jsonParam or jsonParam["key"] is None or str(jsonParam["key"]).strip() == "":
+        if "key" not in jsonParam or jsonParam["key"] is None or searchKey == "":
             return None
+
+        """
+        特殊字符要转义， 比如 万家防水(墙宅路) => 万家防水\\(墙宅路\\)
+        keywordList = [":", "{", "}", "[", "]", "\"", "(", ")", "*", "?","+"]
+        """
+
+        keywordList = [":", "{", "}", "[", "]", "\"", "(", ")", "*", "?", "+"]
+        for k in keywordList:
+            if k in searchKey:
+                searchKey = searchKey.replace(k, "\\" + k)
+        print(searchKey)
+
         searchParam["query"]["bool"]["must"].append({
             "query_string": {
                 "default_field": keyField,
-                "query": "*" + str(jsonParam["key"]) + "*"
+                "query": "*" + searchKey + "*"
             }
         })
 
@@ -506,8 +520,8 @@ class EsSearchService:
             searchParam["size"] = size if size <= 50 else 50
 
         #  空间查询
-        if "point" in jsonParam and "radius" in jsonParam and jsonParam["point"] is not None and jsonParam[
-            "radius"] is not None:
+        if ("point" in jsonParam and "radius" in jsonParam and jsonParam["point"] is not None
+                and jsonParam["radius"] is not None):
             points = str(jsonParam["point"]).split(" ")
             if len(points) == 2:
                 searchParam["query"]["bool"]["must"].append({
