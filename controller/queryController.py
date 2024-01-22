@@ -16,6 +16,18 @@ RE_DO_REPLACE_SYMBOLS = {
 }
 
 
+def _genRestResultOld(result):
+    for k, v in result.items():
+        result[k] = {
+            "msg": "nothing" if v == "" or v is None or len(v) == 0 else "success",
+            "data": {} if v == "" or v is None or len(v) == 0 else v,
+            "code": 404 if v == "" or v is None or len(v) == 0 else 200
+        }
+
+    # return json.dumps(result, ensure_ascii=False)
+    return result
+
+
 def _genRestResult(resultDict, error):
     result = {
         "msg": str(error),
@@ -62,7 +74,8 @@ def _doSearchByAddress(jsonRequest, returnMulti=False):
                     should_do = True
         if should_do:
             result, succeed, error = _doSearch(esSearchService, resultListDict, returnMulti)
-    return _genRestResult(result, error)
+    # return _genRestResult(result, error)
+    return _genRestResultOld(result)
 
 
 def _doSearchByPoint(jsonRequest, returnMulti=False):
@@ -75,7 +88,8 @@ def _doSearchByPoint(jsonRequest, returnMulti=False):
     except Exception as e:
         error = str(e)
         log.error("searchByAddress error =>" + str(e))
-    return _genRestResult(result, error)
+    # return _genRestResult(result, error)
+    return _genRestResultOld(result)
 
 
 @rest_app.post("/searchByAddress")
