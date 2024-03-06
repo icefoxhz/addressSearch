@@ -1,24 +1,23 @@
-from pySimpleSpringFramework.spring_core.task.executorTaskManager import ExecutorTaskManager
-from pySimpleSpringFramework.spring_core.type.annotationType import Propagation
-from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Transactional
-from tqdm import tqdm
 import pandas as pd
 from pySimpleSpringFramework.spring_core.log import log
+from pySimpleSpringFramework.spring_core.task.executorTaskManager import ExecutorTaskManager
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Autowired, Value
+from pySimpleSpringFramework.spring_core.type.annotationType import Propagation
+from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Transactional
 from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
+from tqdm import tqdm
 
 from addressSearch.enums.dbOperator import DBOperator
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.resolver.addressParseRunner import AddressParseRunner
+from addressSearch.service.configService import ConfigService
 
 
 @Component
 class ResolveToDBService:
     @Value({
         "project.tables.batch_size": "_batch_size",
-        "project.tables.address_table": "_address_table",
-        "project.tables.parsed_address_table": "_parsed_address_table",
         "task.execution.pool.max_size": "_thread_pool_max_size",
     })
     def __init__(self):
@@ -30,6 +29,7 @@ class ResolveToDBService:
         self._addressParseRunner = None
         self._addressMapping = None
         self._applicationContext = None
+        self._configService = None
 
         self._executorTaskManager = None
 
@@ -47,11 +47,13 @@ class ResolveToDBService:
                    lacModelManager,
                    resolveToDBService,
                    applicationContext,
+                   configService: ConfigService,
                    addressMapping: AddressMapping,
                    addressParseRunner: AddressParseRunner,
                    databaseManager: DatabaseManager,
                    executorTaskManager: ExecutorTaskManager
                    ):
+        self._configService = configService
         self._lacModelManager = lacModelManager
         self._self = resolveToDBService
         self._applicationContext = applicationContext
@@ -59,6 +61,10 @@ class ResolveToDBService:
         self._addressParseRunner = addressParseRunner
         self._databaseManager = databaseManager
         self._executorTaskManager = executorTaskManager
+
+    def _after_init(self):
+        self._address_table = self._configService.get_addr_cnf("data_table")
+        self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
 
     def _do_parsed_result(self, data, if_exists='append'):
         df = pd.DataFrame(data)

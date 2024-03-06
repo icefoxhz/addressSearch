@@ -188,32 +188,6 @@ async def appsearchByPointEx(jsonRequest: Dict[int, str]):
     return _doSearchByPoint(jsonRequest, True)
 
 
-# 新加
-# @rest_app.post("/search")
-# async def appSearchByAddress(request: Request):
-#     """
-#     {
-#         "key": "初见桃花源",
-#         // "point": "120.4968872070001 31.53228759800004",
-#         "radius": 0.5,
-#         // "wkt": "POLYGON((120.33569335900006 31.545104980000076,120.34569335900007 31.545104980000076,120.32569335900006 31.645104980000077,120.33569335900006 31.545104980000076))",
-#         "start": 0,
-#         "rows": 10
-#     }
-#     """
-#     result = {}
-#     try:
-#         jsonRequest = await request.json()
-#
-#         # 这里是获取bean的例子
-#         esSearchService = serviceApplication.application_context.get_bean("esSearchService")
-#         result = esSearchService.commonSearch(jsonParam=jsonRequest)
-#     except Exception as e:
-#         log.error("searchByAddress error =>" + str(e))
-#
-#     return result
-
-
 @rest_app.post("/reset")
 async def addressReset():
     """

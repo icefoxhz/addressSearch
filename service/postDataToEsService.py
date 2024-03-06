@@ -1,4 +1,3 @@
-import time
 from datetime import datetime
 
 import pandas as pd
@@ -14,21 +13,19 @@ from addressSearch.enums.dbOperator import DBOperator
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
 from addressSearch.es.schemas import schemaMain
 from addressSearch.mapping.addressMapping import AddressMapping
+from addressSearch.service.configService import ConfigService
 
 
 @Component
 class PostDataToEsService:
     @Value({
         "project.tables.batch_size": "_batch_size",
-        "project.tables.parsed_address_table": "_parsed_address_table",
-        "project.elasticsearch.db.db_name": "_db_name",
-        "project.elasticsearch.db.ip": "_ip",
-        "project.elasticsearch.db.port": "_port",
         "task.execution.pool.max_size": "_thread_pool_max_size",
     })
     def __init__(self):
         self._self = None
         self._addressMapping = None
+        self._configService = None
         self._parsed_address_table = None
         self._db_name = None
         self._ip = None
@@ -43,10 +40,18 @@ class PostDataToEsService:
                    addressMapping: AddressMapping,
                    executorTaskManager: ExecutorTaskManager,
                    postDataToEsService,
+                   configService: ConfigService
                    ):
         self._addressMapping = addressMapping
         self._self = postDataToEsService
         self._executorTaskManager = executorTaskManager
+        self._configService = configService
+
+    def _after_init(self):
+        self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
+        self._db_name = self._configService.get_es_cnf("db_name")
+        self._ip = self._configService.get_es_cnf("ip")
+        self._port = int(self._configService.get_es_cnf("port"))
 
     @Transactional()
     def do_run(self, df, progress_bar=None):

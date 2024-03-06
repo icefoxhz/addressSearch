@@ -1,7 +1,9 @@
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
-from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Autowired, Value
+from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Autowired
+from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
 
-from addressSearch.mapping.addressMapping import AddressMapping
+from addressSearch.mapping.configMapping import ConfigMapping
+from addressSearch.service.configService import ConfigService
 
 
 @Component
@@ -9,22 +11,29 @@ class ThesaurusService:
     """
     同义词字典
     """
-
-    @Value({
-        "project.tables.thesaurus_table": "_thesaurus_table",
-    })
     def __init__(self):
-        self._thesaurus_table = None
-        self._addressMapping = None
+        self._configMapping = None
+        self._configService = None
+        self._databaseManager = None
         self.s2t = {}
         self.t2s = {}
 
     @Autowired
-    def set_params(self, addressMapping: AddressMapping):
-        self._addressMapping = addressMapping
+    def set_params(self, configMapping: ConfigMapping,
+                   configService: ConfigService,
+                   databaseManager: DatabaseManager,
+                   ):
+        self._configMapping = configMapping
+        self._configService = configService
+        self._databaseManager = databaseManager
 
     def after_init(self):
-        df = self._addressMapping.get_address_thesaurus(self._thesaurus_table)
+        synonyms_table = self._configService.get_addr_cnf("synonyms_table")
+
+        self._databaseManager.switch_datasource("sourceConfig")
+        df = self._configMapping.get_address_thesaurus(synonyms_table)
+        self._databaseManager.switch_datasource("sourceData")
+
         if df is None or df.empty:
             return
 

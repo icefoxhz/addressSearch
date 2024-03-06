@@ -1,13 +1,15 @@
-import os
 import collections
+import os
 import threading
 import uuid
 
 from LAC import LAC
-from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component, Scope
+from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value, Autowired
+from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
 
-from addressSearch.mapping.addressMapping import AddressMapping
+from addressSearch.mapping.configMapping import ConfigMapping
+from addressSearch.service.configService import ConfigService
 
 
 @Component
@@ -18,16 +20,16 @@ class LacModelManager:
         "lac.model_path": "_model_path",
         "lac.dict_dir": "_dict_dir",
         "task.execution.pool.max_size": "_max_size",
-        "project.tables.dict_word_table": "_dict_word_table",
     })
     def __init__(self):
         self._model_path = None
         self._dict_path = None
         self._max_size = None
-        self._dict_word_table = None
         self._dict_dir = None
         self._dict_path = None
-        self._addressMapping = None
+        self._configMapping = None
+        self._configService = None
+        self._databaseManager = None
 
         self._workDir = os.path.abspath('.')
         self._currentDir = os.path.dirname(__file__)
@@ -36,8 +38,13 @@ class LacModelManager:
         self.__q = collections.deque()
 
     @Autowired
-    def _set_params(self, addressMapping: AddressMapping):
-        self._addressMapping = addressMapping
+    def _set_params(self, configMapping: ConfigMapping,
+                    configService: ConfigService,
+                    databaseManager: DatabaseManager,
+                    ):
+        self._configMapping = configMapping
+        self._configService = configService
+        self._databaseManager = databaseManager
 
     def _generateDict(self):
         self._dict_path = self._dict_dir + os.sep + "custom_" + str(uuid.uuid4()) + ".txt"
@@ -47,7 +54,12 @@ class LacModelManager:
             with open(self._dict_path, 'w'):
                 pass
 
-        data = self._addressMapping.get_address_dict(self._dict_word_table)
+        dict_table = self._configService.get_addr_cnf("dict_table")
+
+        self._databaseManager.switch_datasource("sourceConfig")
+        data = self._configMapping.get_address_dict(dict_table)
+        self._databaseManager.switch_datasource("sourceData")
+
         data["dict_value"].to_csv(self._dict_path, index=False, header=False)
         # print("===== 重新下载分词字典完成 =====")
 

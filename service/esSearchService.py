@@ -1,17 +1,16 @@
-import math
 from copy import deepcopy
 
-import ujson as json
-from shapely.wkt import loads
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component, Scope
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Autowired, Value
 from shapely import wkt
+from shapely.wkt import loads
 
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
 from addressSearch.es.schemas import schemaMain
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.resolver.addressParseRunner import AddressParseRunner
 from addressSearch.resolver.lacModelManager import LacModelManager
+from addressSearch.service.configService import ConfigService
 from addressSearch.service.thesaurusService import ThesaurusService
 
 
@@ -20,21 +19,12 @@ from addressSearch.service.thesaurusService import ThesaurusService
 class EsSearchService:
     @Value({
         "project.print_debug": "_print_debug",
-        "project.tables.address_table": "_address_table",
-        "project.tables.parsed_address_table": "_parsed_address_table",
-        "project.search_key": "_search_key",
-        "project.elasticsearch.db.db_name": "_db_name",
-        "project.elasticsearch.db.ip": "_ip",
-        "project.elasticsearch.db.port": "_port",
-        "project.elasticsearch.point.distance": "_distance",
-        "project.elasticsearch.address.max_return": "_max_return",
         "CUT_WORDS": "_cut_words",
     })
     def __init__(self):
         self._print_debug = False
         self._address_table = None
         self._parsed_address_table = None
-        self._search_key = None
         self._db_name = None
         self._ip = None
         self._port = None
@@ -46,6 +36,7 @@ class EsSearchService:
         self._lacModelManager = None
         self._thesaurusService = None
         self._addressMapping = None
+        self._configService = None
 
         self._searchMain = None
 
@@ -74,6 +65,14 @@ class EsSearchService:
         self._matchSectionListBackFirst = ["unit", "floor", "room", "company"]
 
     def _after_init(self):
+        self._address_table = self._configService.get_addr_cnf("data_table")
+        self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
+        self._db_name = self._configService.get_es_cnf("db_name")
+        self._ip = self._configService.get_es_cnf("ip")
+        self._port = int(self._configService.get_es_cnf("port"))
+        self._distance = self._configService.get_es_cnf("point_buffer_distance")
+        self._max_return = int(self._configService.get_es_cnf("address_max_return"))
+
         self._searchMain = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
         with self._searchMain as es_conn:
             if es_conn is None:
@@ -86,11 +85,13 @@ class EsSearchService:
     @Autowired
     def set_params(self,
                    addressMapping: AddressMapping,
+                   configService: ConfigService,
                    lacModelManager: LacModelManager,
                    addressParseRunner: AddressParseRunner,
                    thesaurusService: ThesaurusService,
                    applicationContext):
         self._addressMapping = addressMapping
+        self._configService = configService
         self._lacModelManager = lacModelManager
         self._addressParseRunner = addressParseRunner
         self._thesaurusService = thesaurusService
@@ -451,121 +452,3 @@ class EsSearchService:
                 else:
                     searchResultAll[dataId] = None
         return searchResultAll
-
-    def commonSearch(self, jsonParam):
-        """
-        point radius 和 wkt 取其一
-
-        {
-           "key": "name",                   字段名
-           "point": "120.29 31.92",         示例：120.29 31.92
-           "radius": "100m",
-           "wkt": "POLYGON((120.33569335900006 31.545104980000076,120.34569335900007 31.545104980000076,120.32569335900006 31.645104980000077,120.33569335900006 31.545104980000076))",
-           "start": 0,                      用于分页，查询结果索引起始值，默认0
-           "rows": 0                        用于分页，查询结果返回记录数，默认0，最大值500
-        }
-        :param jsonParam:
-        :return:
-        """
-        try:
-            searchParam = self.generateCommonSearchParam(self._search_key, jsonParam)
-            if self._print_debug:
-                print("searchParam = ", searchParam)
-            if searchParam is None:
-                raise Exception("必须包含查询关键字")
-
-            searchResult = self._searchMain.query(jsonQuery=searchParam)
-
-            searchCount = int(searchResult.get("hits").get("total").get("value"))
-            items = searchResult.get("hits").get("hits")
-
-            searchList = []
-            for item in items:
-                searchList.append(item["_source"])
-
-            return {
-                "count": searchCount,
-                "result": searchList,
-                "code": 1,
-                "msg": "success"
-            }
-        except Exception as e:
-            return {
-                "code": 0,
-                "msg": str(e)
-            }
-
-    @staticmethod
-    def generateCommonSearchParam(keyField, jsonParam):
-        searchParam = {
-            "query": {
-                "bool": {
-                    "must": []
-                }
-            }
-        }
-
-        searchKey = str(jsonParam["key"]).strip()
-
-        #  字段模糊查询（必须）
-        if "key" not in jsonParam or jsonParam["key"] is None or searchKey == "":
-            return None
-
-        """
-        特殊字符要转义， 比如 万家防水(墙宅路) => 万家防水\\(墙宅路\\)
-        keywordList = [":", "{", "}", "[", "]", "\"", "(", ")", "*", "?","+"]
-        """
-
-        keywordList = [":", "{", "}", "[", "]", "\"", "(", ")", "*", "?", "+"]
-        for k in keywordList:
-            if k in searchKey:
-                searchKey = searchKey.replace(k, "\\" + k)
-        print(searchKey)
-
-        searchParam["query"]["bool"]["must"].append({
-            "query_string": {
-                "default_field": keyField,
-                "query": "*" + searchKey + "*"
-            }
-        })
-
-        # 分页
-        if "start" in jsonParam and "rows" in jsonParam and int(jsonParam["rows"]) > 0:
-            searchParam["from"] = int(jsonParam["start"])
-            size = int(jsonParam["rows"])
-            searchParam["size"] = size if size <= 50 else 50
-
-        #  空间查询
-        if ("point" in jsonParam and "radius" in jsonParam and jsonParam["point"] is not None
-                and jsonParam["radius"] is not None):
-            points = str(jsonParam["point"]).split(" ")
-            if len(points) == 2:
-                searchParam["query"]["bool"]["must"].append({
-                    "geo_distance": {
-                        "distance": str(jsonParam["radius"]) + "km",
-                        "distance_type": "arc",
-                        "location": {
-                            "lat": float(points[1].strip()),
-                            "lon": float(points[0].strip())
-                        }
-                    }
-                })
-        elif "wkt" in jsonParam and jsonParam["wkt"] is not None:
-            geometry = loads(jsonParam["wkt"])
-
-            points = []
-            geoPoints = list(geometry.exterior.coords)
-            for geoPoint in geoPoints:
-                points.append({
-                    "lon": geoPoint[0],
-                    "lat": geoPoint[1]
-                })
-            searchParam["query"]["bool"]["must"].append({
-                "geo_polygon": {
-                    "location": {
-                        "points": points
-                    }
-                }
-            })
-
-        return searchParam

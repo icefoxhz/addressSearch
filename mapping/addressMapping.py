@@ -4,14 +4,6 @@ from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Se
 
 @Component
 class AddressMapping:
-    @Select("select dict_value from #{table}")
-    def get_address_dict(self, table):
-        pass
-
-    @Select("select sword,tword from #{table}")
-    def get_address_thesaurus(self, table):
-        pass
-
     @Select("select id, address as fullname, x, y, op_flag, is_del from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
     def get_address_data(self, table, page_size, offset):
         pass

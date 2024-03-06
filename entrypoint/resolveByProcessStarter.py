@@ -28,13 +28,14 @@ class ServiceApplication(ApplicationStarter):
         self._address_parsed_table = None
         self._address_mapping = None
         self._application_environment = None
+        self._configService = None
 
     def clearLacCustomDict(self):
         dict_dir = self._application_environment.get("lac.dict_dir")
         delete_old_files(dict_dir)
 
     def truncate_address_table(self):
-        parsed_address_table = self._application_environment.get("project.tables.parsed_address_table")
+        parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
         self._address_mapping.truncate_table(parsed_address_table)
 
     def get_address_data_count(self):
@@ -47,10 +48,10 @@ class ServiceApplication(ApplicationStarter):
 
     def set_all_waiting_completed(self):
         # 防止 flag=8的没更新， 每次启动先把 flag=8 的更新成 9
-        self._address_table = self._application_environment.get("project.tables.address_table")
+        self._address_table = self._configService.get_addr_cnf("data_table")
         self._address_mapping.set_all_waiting_completed(self._address_table)
 
-        self._address_parsed_table = self._application_environment.get("project.tables.parsed_address_table")
+        self._address_parsed_table = self._configService.get_addr_cnf("data_table_parsed")
         self._address_mapping.set_all_waiting_completed(self._address_parsed_table)
 
     def do_parse_table(self, start_row, end_row):
@@ -64,6 +65,7 @@ class ServiceApplication(ApplicationStarter):
     def main(self):
         self._application_environment = self.application_context.get_bean("applicationEnvironment")
         self._address_mapping = self.application_context.get_bean("addressMapping")
+        self._configService = self.application_context.get_bean("configService")
 
 
 def task_parse(start_row, end_row):
