@@ -108,7 +108,7 @@ class ResolveToDBService:
                     result["op_flag"] = flag
                     result["id"] = t_id
                     result["fullname"] = full_name
-                    result["parseResult"] = cutListStr
+                    result["parse_result"] = cutListStr
                     if flag == DBOperator.INSERT.value:
                         if is_del == 1:  # 删除后重新新增实际是更新
                             data_modify.append(result)

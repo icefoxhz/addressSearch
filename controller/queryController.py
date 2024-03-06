@@ -143,7 +143,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
 
 
 @rest_app.post("/searchByAddressEx")
-async def appSearchByAddress(jsonRequest: Dict[int, str]):
+async def appSearchByAddressEx(jsonRequest: Dict[int, str]):
     """
     参数格式
     {
@@ -157,7 +157,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
 
 
 @rest_app.post("/searchByPoint")
-async def appSearchByAddress(jsonRequest: Dict[int, str]):
+async def appsearchByPoint(jsonRequest: Dict[int, str]):
     """
     参数格式
     {
@@ -173,7 +173,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
 
 
 @rest_app.post("/searchByPointEx")
-async def appSearchByAddress(jsonRequest: Dict[int, str]):
+async def appsearchByPointEx(jsonRequest: Dict[int, str]):
     """
     参数格式
     {
@@ -215,7 +215,10 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
 
 
 @rest_app.post("/reset")
-async def appSearchByAddress():
+async def addressReset():
+    """
+    重置
+    """
     try:
         # 这里是获取bean的例子
         esSearchService = serviceApplication.application_context.get_bean("esSearchService")
@@ -233,6 +236,9 @@ async def appSearchByAddress():
 
 
 def start_rest_service():
+    """
+    启动
+    """
     # 启动rest服务
     applicationEnvironment = serviceApplication.application_context.get_bean("applicationEnvironment")
     port = applicationEnvironment.get("project.http.rest_port")
