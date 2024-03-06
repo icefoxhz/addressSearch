@@ -19,7 +19,7 @@ RE_DO_REPLACE_SYMBOLS = {
 def _genRestResultOld(result):
     for k, v in result.items():
         result[k] = {
-            "msg": "nothing" if v == "" or v is None or len(v) == 0 else "success",
+            "msg": "nothing" if v == "" or v is None or len(v) == 0 else "succeed",
             "data": {} if v == "" or v is None or len(v) == 0 else v,
             "code": 404 if v == "" or v is None or len(v) == 0 else 200
         }
@@ -36,7 +36,7 @@ def _genRestResult(resultDict, error):
     }
 
     if error is None or str(error) == "":
-        result["msg"] = "success"
+        result["msg"] = "succeed"
         result["result"] = resultDict
         result["code"] = 1
 
@@ -64,6 +64,23 @@ def _doSearchByAddress(jsonRequest, returnMulti=False):
     # 这里是获取bean的例子
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     resultListDict = esSearchService.parse(jsonRequest)
+    result, succeed = _doSearchByAddressWithoutThesaurus(esSearchService, jsonRequest, resultListDict, returnMulti)
+
+    # 如果找不到，使用同义词重新搜索
+    if not succeed:
+        thesaurusService = serviceApplication.application_context.get_bean("thesaurusService")
+        result_WithThesaurus, succeed = _doSearchByAddressWithThesaurus(thesaurusService,
+                                                                        esSearchService,
+                                                                        jsonRequest,
+                                                                        returnMulti)
+        if succeed:
+            result = result_WithThesaurus
+
+    # return _genRestResult(result, error)
+    return _genRestResultOld(result)
+
+
+def _doSearchByAddressWithoutThesaurus(esSearchService, jsonRequest, resultListDict, returnMulti):
     result, succeed, error = _doSearch(esSearchService, resultListDict, returnMulti)
     if not succeed:
         should_do = False
@@ -74,19 +91,38 @@ def _doSearchByAddress(jsonRequest, returnMulti=False):
                     should_do = True
         if should_do:
             result, succeed, error = _doSearch(esSearchService, resultListDict, returnMulti)
-    # return _genRestResult(result, error)
-    return _genRestResultOld(result)
+    return result, succeed
+
+
+def _doSearchByAddressWithThesaurus(thesaurusService, esSearchService, jsonRequest, returnMulti):
+    newJsonRequest = {}
+
+    # 同义词 key => value   value => key
+    ls = [thesaurusService.s2t, thesaurusService.t2s]
+
+    for idx, address in jsonRequest.items():
+        for d in ls:
+            for k, words in d.items():
+                if address.find(k) >= 0:
+                    for word in words:
+                        newJsonRequest[idx] = address.replace(k, word)
+                        resultListDict = esSearchService.parse(newJsonRequest)
+                        result, succeed = _doSearchByAddressWithoutThesaurus(esSearchService,
+                                                                             newJsonRequest,
+                                                                             resultListDict,
+                                                                             returnMulti)
+                        if succeed:
+                            return result, succeed
+    return {}, False
 
 
 def _doSearchByPoint(jsonRequest, returnMulti=False):
     result = {}
-    error = None
     try:
         # 这里是获取bean的例子
         esSearchService = serviceApplication.application_context.get_bean("esSearchService")
         result = esSearchService.searchByPoint(jsonRequest, returnMulti)
     except Exception as e:
-        error = str(e)
         log.error("searchByAddress error =>" + str(e))
     # return _genRestResult(result, error)
     return _genRestResultOld(result)
@@ -97,10 +133,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     """
     参数格式
     {
-        "1": "无锡市惠山区洛社镇五秦村强巷52号",
-        "2": "无锡市江阴市澄江街道天鹤社区人民东路二百九十九弄23号",
-        "3": "无锡市江阴市周庄镇三房巷村三房巷278号",
-        ...
+        "1": "无锡市惠山区洛社镇五秦村强巷52号"
     }
 
     :param jsonRequest:
@@ -114,10 +147,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     """
     参数格式
     {
-        "1": "无锡市惠山区洛社镇五秦村强巷52号",
-        "2": "无锡市江阴市澄江街道天鹤社区人民东路二百九十九弄23号",
-        "3": "无锡市江阴市周庄镇三房巷村三房巷278号",
-        ...
+        "1": "无锡市惠山区洛社镇五秦村强巷52号"
     }
 
     :param jsonRequest:
@@ -159,19 +189,47 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
 
 
 # 新加
-@rest_app.post("/search")
-async def appSearchByAddress(request: Request):
-    result = {}
-    try:
-        jsonRequest = await request.json()
+# @rest_app.post("/search")
+# async def appSearchByAddress(request: Request):
+#     """
+#     {
+#         "key": "初见桃花源",
+#         // "point": "120.4968872070001 31.53228759800004",
+#         "radius": 0.5,
+#         // "wkt": "POLYGON((120.33569335900006 31.545104980000076,120.34569335900007 31.545104980000076,120.32569335900006 31.645104980000077,120.33569335900006 31.545104980000076))",
+#         "start": 0,
+#         "rows": 10
+#     }
+#     """
+#     result = {}
+#     try:
+#         jsonRequest = await request.json()
+#
+#         # 这里是获取bean的例子
+#         esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+#         result = esSearchService.commonSearch(jsonParam=jsonRequest)
+#     except Exception as e:
+#         log.error("searchByAddress error =>" + str(e))
+#
+#     return result
 
+
+@rest_app.post("/reset")
+async def appSearchByAddress():
+    try:
         # 这里是获取bean的例子
         esSearchService = serviceApplication.application_context.get_bean("esSearchService")
-        result = esSearchService.commonSearch(jsonParam=jsonRequest)
+        esSearchService.reset()
+        return {
+            "msg": "succeed",
+            "code": 1
+        }
     except Exception as e:
-        log.error("searchByAddress error =>" + str(e))
-
-    return result
+        log.error("reset error =>" + str(e))
+        return {
+            "msg": str(e),
+            "code": 0
+        }
 
 
 def start_rest_service():

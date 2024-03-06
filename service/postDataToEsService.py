@@ -162,6 +162,11 @@ class PostDataToEsService:
         es.create(self._db_name)
         es.close()
 
+    # def _deleteDB(self):
+    #     es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+    #     es.deleteIndex(self._db_name)
+    #     es.close()
+
     # def do_run_by_process(self, df, progress_bar=None):
     #     self.do_run(df, progress_bar)
 

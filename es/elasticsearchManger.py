@@ -86,10 +86,10 @@ class ElasticsearchManger:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def deleteIndex(self):
+    def deleteIndex(self, index_name):
         conn = self._get_conn()
-        if conn.indices.exists(index=self.__indexName):
-            conn.indices.delete(index=self.__indexName)
+        if conn.indices.exists(index=index_name):
+            conn.indices.delete(index=index_name)
         self.__local_obj.last_do_time = time.time()
 
     def query(self, jsonQuery):

@@ -9,8 +9,10 @@ from shapely import wkt
 
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
 from addressSearch.es.schemas import schemaMain
+from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.resolver.addressParseRunner import AddressParseRunner
 from addressSearch.resolver.lacModelManager import LacModelManager
+from addressSearch.service.thesaurusService import ThesaurusService
 
 
 @Component
@@ -18,6 +20,8 @@ from addressSearch.resolver.lacModelManager import LacModelManager
 class EsSearchService:
     @Value({
         "project.print_debug": "_print_debug",
+        "project.tables.address_table": "_address_table",
+        "project.tables.parsed_address_table": "_parsed_address_table",
         "project.search_key": "_search_key",
         "project.elasticsearch.db.db_name": "_db_name",
         "project.elasticsearch.db.ip": "_ip",
@@ -28,6 +32,8 @@ class EsSearchService:
     })
     def __init__(self):
         self._print_debug = False
+        self._address_table = None
+        self._parsed_address_table = None
         self._search_key = None
         self._db_name = None
         self._ip = None
@@ -38,6 +44,8 @@ class EsSearchService:
         self._applicationContext = None
         self._addressParseRunner = None
         self._lacModelManager = None
+        self._thesaurusService = None
+        self._addressMapping = None
 
         self._searchMain = None
 
@@ -77,12 +85,27 @@ class EsSearchService:
 
     @Autowired
     def set_params(self,
+                   addressMapping: AddressMapping,
                    lacModelManager: LacModelManager,
                    addressParseRunner: AddressParseRunner,
+                   thesaurusService: ThesaurusService,
                    applicationContext):
+        self._addressMapping = addressMapping
         self._lacModelManager = lacModelManager
         self._addressParseRunner = addressParseRunner
+        self._thesaurusService = thesaurusService
         self._applicationContext = applicationContext
+
+    def reset(self):
+        # 清空数据表
+        self._addressMapping.truncate_table(self._address_table)
+        self._addressMapping.truncate_table(self._parsed_address_table)
+
+        # 删了重建es库
+        es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+        es.deleteIndex(self._db_name)
+        es.create(self._db_name)
+        es.close()
 
     @staticmethod
     def getAliasName(fullName, startStr, endStr):
@@ -124,13 +147,6 @@ class EsSearchService:
 
     def searchByAddress(self, resultListDict, isAccurate=True, returnMulti=False):
         """
-         {
-            "1": "无锡市惠山区洛社镇五秦村强巷52号",
-            "2": "无锡市江阴市澄江街道天鹤社区人民东路二百九十九弄23号",
-            "3": "无锡市江阴市周庄镇三房巷村三房巷278号",
-            ...
-        }
-
         通过地名地址匹配
         :param resultListDict:
         :param isAccurate:   是否精准匹配

@@ -80,8 +80,10 @@ class ResolveToDBService:
             data_modify = []
 
             for _, row in df.iterrows():
-                flag = int(row["op_flag"])
-                is_del = int(row["is_del"])
+                op_flag = row["op_flag"]
+                is_del = row["is_del"]
+                flag = int(op_flag) if op_flag is not None else 0
+                is_del = int(is_del) if is_del is not None else 0
 
                 t_id = row["id"]
                 if flag == DBOperator.INSERT.value:
