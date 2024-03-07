@@ -1,15 +1,14 @@
 import os
 import sys
-from time import sleep
-
-from pySimpleSpringFramework.spring_core.applicationStarter import ApplicationStarter
-from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import ComponentScan, ConfigDirectories
-
-from addressSearch.utils.Util import delete_old_files
 
 # 把父目录放入path， 父目录就是包。 这个需要自己调整
 root_model_path = os.path.dirname(os.path.dirname(os.getcwd()))
 sys.path.append(root_model_path)
+
+from time import sleep
+from pySimpleSpringFramework.spring_core.applicationStarter import ApplicationStarter
+from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import ComponentScan, ConfigDirectories
+from addressSearch.utils.Util import delete_old_files
 
 
 # 基于 root_model_path 的相对的位置， 因为 root_model_path 就是包
@@ -117,8 +116,11 @@ if __name__ == '__main__':
     serviceApplication.set_all_waiting_completed()
 
     while True:
-        # ================= 解析更新数据库
-        parse_process(serviceApplication)
-        # ================ 更新es库
-        post_to_es(serviceApplication)
-        sleep(5)
+        try:
+            # ================= 解析更新数据库
+            parse_process(serviceApplication)
+            # ================ 更新es库
+            post_to_es(serviceApplication)
+            sleep(5)
+        except Exception as e:
+            print(str(e))

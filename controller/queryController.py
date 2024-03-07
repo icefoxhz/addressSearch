@@ -1,4 +1,4 @@
-import ujson as json
+import asyncio
 from typing import Dict
 
 import uvicorn
@@ -8,6 +8,9 @@ from pySimpleSpringFramework.spring_core.log import log
 from addressSearch.entrypoint.applicationStarter import serviceApplication
 
 # 在这里导入自己的serviceApplication实例
+
+# 设置最大并发数
+semaphore = asyncio.Semaphore(1000)
 
 rest_app = FastAPI()
 
@@ -66,13 +69,19 @@ def _doSearchByAddress(jsonRequest, returnMulti=False):
     resultListDict = esSearchService.parse(jsonRequest)
     result, succeed = _doSearchByAddressWithoutThesaurus(esSearchService, jsonRequest, resultListDict, returnMulti)
 
-    # 如果找不到，使用同义词重新搜索
-    if not succeed:
+    # 如果找不到或搜索结果得分太低的，则使用同义词重新搜索
+    score = 0
+    reqId = "1"
+    if type(result[reqId]) == dict and "score" in result[reqId].keys():
+        score = result[reqId]["score"]
+
+    if not succeed or score < 100:
         thesaurusService = serviceApplication.application_context.get_bean("thesaurusService")
         result_WithThesaurus, succeed = _doSearchByAddressWithThesaurus(thesaurusService,
                                                                         esSearchService,
                                                                         jsonRequest,
-                                                                        returnMulti)
+                                                                        returnMulti,
+                                                                        score)
         if succeed:
             result = result_WithThesaurus
 
@@ -94,9 +103,9 @@ def _doSearchByAddressWithoutThesaurus(esSearchService, jsonRequest, resultListD
     return result, succeed
 
 
-def _doSearchByAddressWithThesaurus(thesaurusService, esSearchService, jsonRequest, returnMulti):
+def _doSearchByAddressWithThesaurus(thesaurusService, esSearchService, jsonRequest, returnMulti, score=0):
     newJsonRequest = {}
-
+    reqId = "1"
     # 同义词 key => value   value => key
     ls = [thesaurusService.s2t, thesaurusService.t2s]
 
@@ -111,7 +120,7 @@ def _doSearchByAddressWithThesaurus(thesaurusService, esSearchService, jsonReque
                                                                              newJsonRequest,
                                                                              resultListDict,
                                                                              returnMulti)
-                        if succeed:
+                        if succeed and result[reqId]["score"] > score:
                             return result, succeed
     return {}, False
 
@@ -126,6 +135,13 @@ def _doSearchByPoint(jsonRequest, returnMulti=False):
         log.error("searchByAddress error =>" + str(e))
     # return _genRestResult(result, error)
     return _genRestResultOld(result)
+
+
+@rest_app.middleware("http")
+async def limit_concurrency(request: Request, call_next):
+    async with semaphore:
+        response = await call_next(request)
+    return response
 
 
 @rest_app.post("/searchByAddress")
@@ -216,4 +232,5 @@ def start_rest_service():
     # 启动rest服务
     applicationEnvironment = serviceApplication.application_context.get_bean("applicationEnvironment")
     port = applicationEnvironment.get("project.http.rest_port")
+    # uvicorn.run(rest_app, host="0.0.0.0", port=port, reload=False, workers=8)
     uvicorn.run(rest_app, host="0.0.0.0", port=port, reload=False)

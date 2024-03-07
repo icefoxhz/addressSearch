@@ -49,7 +49,7 @@ class PostDataToEsService:
 
     def _after_init(self):
         self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
-        self._db_name = self._configService.get_es_cnf("db_name")
+        self._db_name = self._configService.get_es_cnf("db_name_address")
         self._ip = self._configService.get_es_cnf("ip")
         self._port = int(self._configService.get_es_cnf("port"))
 

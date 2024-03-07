@@ -67,7 +67,7 @@ class EsSearchService:
     def _after_init(self):
         self._address_table = self._configService.get_addr_cnf("data_table")
         self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
-        self._db_name = self._configService.get_es_cnf("db_name")
+        self._db_name = self._configService.get_es_cnf("db_name_address")
         self._ip = self._configService.get_es_cnf("ip")
         self._port = int(self._configService.get_es_cnf("port"))
         self._distance = self._configService.get_es_cnf("point_buffer_distance")
@@ -196,7 +196,7 @@ class EsSearchService:
                 if val is not None and val != "" and len(val) > 0:
                     searchResultAll[str(dataId)] = val
                     succeed = True
-                    print("第1次去除back后匹配 = ", val)
+                    # print("第1次去除back后匹配 = ", val)
                     continue
 
                 # # 去除back后匹配
@@ -235,6 +235,7 @@ class EsSearchService:
         searchResult = es.query(searchParam)
         searchCount = int(searchResult.get("hits").get("total").get("value"))
         val = []
+        maxScore = 0
         if searchCount > 0:
             if self._print_debug:
                 print("找到数量 = ", searchCount)
@@ -243,7 +244,9 @@ class EsSearchService:
 
             for item in items:
                 if maxScore == item.get("_score"):
-                    val.append(item.get("_source"))
+                    res = item.get("_source")
+                    res["score"] = item.get("_score")
+                    val.append(res)
 
                 if len(val) >= self._max_return or item.get("_score") < maxScore:
                     break
