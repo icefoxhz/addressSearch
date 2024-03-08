@@ -78,71 +78,74 @@ class ResolveToDBService:
     @Transactional()
     def do_run(self, df, progress_bar=None):
         with self._lacModelManager as model:
-            ids_insert = []
-            ids_update = []
-            ids_delete = []
+            try:
+                ids_insert = []
+                ids_update = []
+                ids_delete = []
 
-            data_insert = []
-            data_modify = []
+                data_insert = []
+                data_modify = []
 
-            for _, row in df.iterrows():
-                op_flag = row["op_flag"]
-                is_del = row["is_del"]
-                flag = int(op_flag) if op_flag is not None else 0
-                is_del = int(is_del) if is_del is not None else 0
+                for _, row in df.iterrows():
+                    op_flag = row["op_flag"]
+                    is_del = row["is_del"]
+                    flag = int(op_flag) if op_flag is not None else 0
+                    is_del = int(is_del) if is_del is not None else 0
 
-                t_id = row["id"]
-                if flag == DBOperator.INSERT.value:
-                    if is_del == 1:  # 删除后重新新增实际是更新
-                        ids_update.append(t_id)
-                    else:
-                        ids_insert.append(t_id)
-                elif flag == DBOperator.UPDATE.value:
-                    ids_update.append(t_id)
-                elif flag == DBOperator.DELETE.value:
-                    ids_delete.append(t_id)
-                    continue
-                else:
-                    raise Exception("flag未知的数字！0=新增  1=更新  2=删除  9=完成")
-
-                full_name = row["fullname"]
-                x = row["x"]
-                y = row["y"]
-                address_parser = self._applicationContext.get_bean("addressParser")
-                resultList, cutListStr = self._addressParseRunner.run(address_parser, model, full_name, x, y)
-                for result in resultList:
-                    result["op_flag"] = flag
-                    result["id"] = t_id
-                    result["fullname"] = full_name
-                    result["parse_result"] = cutListStr
+                    t_id = row["id"]
                     if flag == DBOperator.INSERT.value:
                         if is_del == 1:  # 删除后重新新增实际是更新
-                            data_modify.append(result)
+                            ids_update.append(t_id)
                         else:
-                            data_insert.append(result)
-                    if flag == DBOperator.UPDATE.value:
-                        data_modify.append(result)
+                            ids_insert.append(t_id)
+                    elif flag == DBOperator.UPDATE.value:
+                        ids_update.append(t_id)
+                    elif flag == DBOperator.DELETE.value:
+                        ids_delete.append(t_id)
+                        continue
+                    else:
+                        raise Exception("flag未知的数字！0=新增  1=更新  2=删除  9=完成")
 
-            # 新增
-            if len(data_insert) > 0:
-                self._do_parsed_result(data=data_insert)
-                for tId in ids_insert:
-                    self._addressMapping.set_notDelete_and_waiting_completed(self._address_table, tId)
+                    full_name = row["fullname"]
+                    x = row["x"]
+                    y = row["y"]
+                    address_parser = self._applicationContext.get_bean("addressParser")
+                    resultList, cutListStr = self._addressParseRunner.run(address_parser, model, full_name, x, y)
+                    for result in resultList:
+                        result["op_flag"] = flag
+                        result["id"] = t_id
+                        result["fullname"] = full_name
+                        result["parse_result"] = cutListStr
+                        if flag == DBOperator.INSERT.value:
+                            if is_del == 1:  # 删除后重新新增实际是更新
+                                data_modify.append(result)
+                            else:
+                                data_insert.append(result)
+                        if flag == DBOperator.UPDATE.value:
+                            data_modify.append(result)
 
-            # 修改
-            if len(data_modify) > 0:
-                # 修改太麻烦，这里使用先删再插。
-                self._self.delete_data(ids_update)
-                self._do_parsed_result(data=data_modify)
+                # 新增
+                if len(data_insert) > 0:
+                    self._do_parsed_result(data=data_insert)
+                    for tId in ids_insert:
+                        self._addressMapping.set_notDelete_and_waiting_completed(self._address_table, tId)
 
-                for tId in ids_update:
-                    self._addressMapping.set_notDelete_and_waiting_completed(self._address_table, tId)
+                # 修改
+                if len(data_modify) > 0:
+                    # 修改太麻烦，这里使用先删再插。
+                    self._self.delete_data(ids_update)
+                    self._do_parsed_result(data=data_modify)
 
-            # 删除
-            if len(ids_delete) > 0:
-                for tId in ids_delete:
-                    self._addressMapping.set_deleted(self._parsed_address_table, tId)
-                    self._addressMapping.set_delete_and_waiting_completed(self._address_table, tId)
+                    for tId in ids_update:
+                        self._addressMapping.set_notDelete_and_waiting_completed(self._address_table, tId)
+
+                # 删除
+                if len(ids_delete) > 0:
+                    for tId in ids_delete:
+                        self._addressMapping.set_deleted(self._parsed_address_table, tId)
+                        self._addressMapping.set_delete_and_waiting_completed(self._address_table, tId)
+            except Exception as e:
+                log.error("ResolveToDBService do_run => " + str(e))
 
         if progress_bar is not None:
             progress_bar.update(len(df))
@@ -200,8 +203,8 @@ class ResolveToDBService:
             self._addressMapping.set_all_waiting_completed(self._address_table)
             progress_bar.close()
         except Exception as e:
-            print(str(e))
-            log.error(str(e))
+            # print(str(e))
+            log.error("start_by_process => " + str(e))
 
     # def callback_function(self, future):
     #     future.result()

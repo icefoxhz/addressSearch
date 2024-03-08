@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+from pySimpleSpringFramework.spring_core.log import log
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component, Scope
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Autowired, Value
 from shapely import wkt
@@ -132,10 +133,13 @@ class EsSearchService:
             with self._lacModelManager as model:
                 i = 1
                 for address in fullNameAllList:
-                    addressParser = self._applicationContext.get_bean("addressParser")
-                    address = address.replace(" ", "")
-                    resultList, _ = self._addressParseRunner.run(addressParser, model, address)
-                    resultDict[str(dataId) + "^" + str(i)] = resultList
+                    try:
+                        addressParser = self._applicationContext.get_bean("addressParser")
+                        address = address.replace(" ", "")
+                        resultList, _ = self._addressParseRunner.run(addressParser, model, address)
+                        resultDict[str(dataId) + "^" + str(i)] = resultList
+                    except:
+                        log.error("解析地址出错, address: " + address)
                     i += 1
         return resultDict
 

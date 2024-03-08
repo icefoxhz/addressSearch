@@ -20,7 +20,6 @@ from addressSearch.service.configService import ConfigService
 class PostDataToEsService:
     @Value({
         "project.tables.batch_size": "_batch_size",
-        "task.execution.pool.max_size": "_thread_pool_max_size",
     })
     def __init__(self):
         self._self = None
@@ -30,10 +29,8 @@ class PostDataToEsService:
         self._db_name = None
         self._ip = None
         self._port = None
-        self._thread_pool_max_size = None
         self._batch_size = None
         self._executorTaskManager = None
-        self.__isESSchemaCreated = False
 
     @Autowired
     def set_params(self,
@@ -47,6 +44,9 @@ class PostDataToEsService:
         self._executorTaskManager = executorTaskManager
         self._configService = configService
 
+    def _es_init(self):
+        self._createESSchema()
+
     def _after_init(self):
         self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
         self._db_name = self._configService.get_es_cnf("db_name_address")
@@ -58,6 +58,9 @@ class PostDataToEsService:
         df.columns = df.columns.str.lower()
 
         es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+        if es is None:
+            log.error("当前线程连接elasticSearch服务器失败")
+            return
 
         ids = []
         for row in df.itertuples():
@@ -125,10 +128,6 @@ class PostDataToEsService:
                             desc="从解析表读取数据后写入到ElasticSearch库, 当前完成 ", unit=" 条")
 
         try:
-            if not self.__isESSchemaCreated:
-                self._createESSchema()
-                self.__isESSchemaCreated = True
-
             page = 0
             futures = []
             while True:
@@ -143,10 +142,10 @@ class PostDataToEsService:
                                                           self.callback_function,
                                                           df,
                                                           progress_bar)
-                futures.append(future)
+                if future is not None:
+                    futures.append(future)
                 page += 1
             self._executorTaskManager.waitUntilComplete(futures)
-
             # 把完成的状态更新  op_flag=9
             self._addressMapping.set_all_waiting_completed(self._parsed_address_table)
 
@@ -157,15 +156,18 @@ class PostDataToEsService:
 
             return True
         except Exception as e:
-            print(str(e))
-            log.error(str(e))
+            # print(str(e))
+            log.error("start_by_thread => " + str(e))
 
         return False
 
     def _createESSchema(self):
-        es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
-        es.create(self._db_name)
-        es.close()
+        try:
+            es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+            es.create(self._db_name)
+            es.close()
+        except Exception as e:
+            print("create_es_index => " + str(e))
 
     # def _deleteDB(self):
     #     es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)

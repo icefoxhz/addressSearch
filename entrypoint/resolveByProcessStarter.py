@@ -1,5 +1,6 @@
 import os
 import sys
+# from multiprocessing import freeze_support
 
 # 把父目录放入path， 父目录就是包。 这个需要自己调整
 root_model_path = os.path.dirname(os.path.dirname(os.getcwd()))
@@ -107,6 +108,8 @@ def post_to_es(app):
 
 
 if __name__ == '__main__':
+    # freeze_support()  # pyinstaller 打包后的进程支持，必须加，不然无法使用进程
+
     print("root_model_path=", root_model_path)
 
     serviceApplication = ServiceApplication()

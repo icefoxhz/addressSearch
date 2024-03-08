@@ -1,7 +1,8 @@
 import asyncio
 from typing import Dict
-
 import uvicorn
+from starlette.responses import JSONResponse
+from uvicorn import Config
 from fastapi import FastAPI, Request
 from pySimpleSpringFramework.spring_core.log import log
 
@@ -144,6 +145,12 @@ async def limit_concurrency(request: Request, call_next):
     return response
 
 
+@rest_app.exception_handler(OSError)
+async def handle_os_error(request, exc):
+    log.error(f"OSError caught: {exc}")
+    return JSONResponse(status_code=500, content={"message": "Internal server error"})
+
+
 @rest_app.post("/searchByAddress")
 async def appSearchByAddress(jsonRequest: Dict[int, str]):
     """
@@ -233,4 +240,7 @@ def start_rest_service():
     applicationEnvironment = serviceApplication.application_context.get_bean("applicationEnvironment")
     port = applicationEnvironment.get("project.http.rest_port")
     # uvicorn.run(rest_app, host="0.0.0.0", port=port, reload=False, workers=8)
-    uvicorn.run(rest_app, host="0.0.0.0", port=port, reload=False)
+
+    config = Config(app=rest_app, lifespan='off', host="0.0.0.0", port=port, reload=True)
+    server = uvicorn.Server(config=config)
+    server.run()

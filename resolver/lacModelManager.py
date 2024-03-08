@@ -4,6 +4,7 @@ import threading
 import uuid
 
 from LAC import LAC
+from pySimpleSpringFramework.spring_core.log import log
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value, Autowired
 from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
@@ -77,8 +78,16 @@ class LacModelManager:
 
     # 使用with的写法
     def __enter__(self):
+        model = None
         with self._lock:
-            model = self.__q.popleft()
+            if len(self.__q) > 0:
+                model = self.__q.popleft()
+
+        # 万一__exit__ 出现异常导致模型没有还回去，就创建新的
+        if model is None:
+            model = self.__generateModel()
+            log.info("===== 队列为空，重新创建模型 ======")
+
         self.__local_obj.model = model
         return model
 
@@ -86,11 +95,15 @@ class LacModelManager:
     def __exit__(self, exc_type, exc_value, traceback):
         # 如果在 with 语句块中出现异常，exc_type、exc_value 和 traceback 参数将包含异常信息
         if exc_type is not None:
-            raise Exception(f"出现异常,异常类型: {exc_type}, 异常信息: {exc_value}")
+            # raise Exception(f"出现异常,异常类型: {exc_type}, 异常信息: {exc_value}")
+            log.error(f"LacModelManager __exit__ 出现异常,异常类型: {exc_type}, 异常信息: {exc_value}")
+            # 返回False则会让异常继续向上抛出
+            return False
 
         if hasattr(self.__local_obj.model, "model") and self.__local_obj.model is not None:
             with self._lock:
                 self.__q.append(self.__local_obj.model)
+
         return True
 
     # def take(self):
