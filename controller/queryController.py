@@ -1,4 +1,5 @@
 import asyncio
+import re
 from typing import Dict
 import uvicorn
 from starlette.responses import JSONResponse
@@ -18,6 +19,24 @@ rest_app = FastAPI()
 RE_DO_REPLACE_SYMBOLS = {
     "-": "号"
 }
+
+_JUDGE_SCORE = 150
+
+
+def isNumLetters(s):
+    if s is None or s == "":
+        return False
+
+    if len(s) < 2:
+        if re.match('^[0-9a-zA-Z]+$', s[0]):
+            return True
+        else:
+            return False
+    else:
+        if re.match('^[0-9a-zA-Z]+$', s[0]) and re.match('^[0-9a-zA-Z_-]+$', s[1:]):
+            return True
+        else:
+            return False
 
 
 def _genRestResultOld(result):
@@ -68,6 +87,31 @@ def _doSearchByAddress(jsonRequest, returnMulti=False):
     # 这里是获取bean的例子
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     resultListDict = esSearchService.parse(jsonRequest)
+    result, succeed = _doStep(esSearchService, jsonRequest, resultListDict, returnMulti)
+
+    score = 0
+    reqId = "1"
+    if type(result[reqId]) == dict and "score" in result[reqId]["data"].keys():
+        score = result[reqId]["data"]["score"]
+    if not succeed or score < _JUDGE_SCORE:
+        applicationEnvironment = serviceApplication.application_context.get_bean("applicationEnvironment")
+        _JUDGE_DELETE_NUM = applicationEnvironment.get("JUDGE_DELETE_NUM")
+        # 减少数字的分词
+        for _, ls in resultListDict.items():
+            for d in ls:
+                for k in _JUDGE_DELETE_NUM:
+                    if k in d.keys() and isNumLetters(d[k]):
+                        d.pop(k)
+                        result, succeed = _doStep(esSearchService, jsonRequest, resultListDict, returnMulti)
+                        if type(result[reqId]) == dict and "score" in result[reqId]["data"].keys():
+                            score = result[reqId]["data"]["score"]
+                        if succeed and score > _JUDGE_SCORE:
+                            break
+
+    return result
+
+
+def _doStep(esSearchService, jsonRequest, resultListDict, returnMulti):
     result, succeed = _doSearchByAddressWithoutThesaurus(esSearchService, jsonRequest, resultListDict, returnMulti)
 
     # 如果找不到或搜索结果得分太低的，则使用同义词重新搜索
@@ -76,7 +120,7 @@ def _doSearchByAddress(jsonRequest, returnMulti=False):
     if type(result[reqId]) == dict and "score" in result[reqId].keys():
         score = result[reqId]["score"]
 
-    if not succeed or score < 100:
+    if not succeed or score < _JUDGE_SCORE:
         thesaurusService = serviceApplication.application_context.get_bean("thesaurusService")
         result_WithThesaurus, succeed = _doSearchByAddressWithThesaurus(thesaurusService,
                                                                         esSearchService,
@@ -87,7 +131,7 @@ def _doSearchByAddress(jsonRequest, returnMulti=False):
             result = result_WithThesaurus
 
     # return _genRestResult(result, error)
-    return _genRestResultOld(result)
+    return _genRestResultOld(result), succeed
 
 
 def _doSearchByAddressWithoutThesaurus(esSearchService, jsonRequest, resultListDict, returnMulti):
@@ -165,7 +209,7 @@ async def appSearchByAddress(jsonRequest: Dict[int, str]):
     return _doSearchByAddress(jsonRequest, False)
 
 
-@rest_app.post("/searchByAddressEx")
+@rest_app.post("/searc6hByAddressEx")
 async def appSearchByAddressEx(jsonRequest: Dict[int, str]):
     """
     参数格式
@@ -232,6 +276,31 @@ async def addressReset():
         }
 
 
+@rest_app.post("/import_local_file")
+async def addressCreateByFile(request: Request):
+    try:
+        jsonRequest = await request.json()
+        file = jsonRequest["file"]
+
+        table = None
+        if "table" in jsonRequest.items():
+            table = jsonRequest["table"]
+
+        fileImportService = serviceApplication.application_context.get_bean("fileImportService")
+        ret = fileImportService.run(file, table)
+        return {
+            "msg": "succeed" if ret else "failed",
+            "code": 1 if ret else 0
+        }
+
+    except Exception as e:
+        log.error("reset error =>" + str(e))
+        return {
+            "msg": str(e),
+            "code": 0
+        }
+
+
 def start_rest_service():
     """
     启动
@@ -241,6 +310,6 @@ def start_rest_service():
     port = applicationEnvironment.get("project.http.rest_port")
     # uvicorn.run(rest_app, host="0.0.0.0", port=port, reload=False, workers=8)
 
-    config = Config(app=rest_app, lifespan='off', host="0.0.0.0", port=port, reload=True)
+    config = Config(app=rest_app, lifespan='off', host="0.0.0.0", port=port, reload=False)
     server = uvicorn.Server(config=config)
     server.run()

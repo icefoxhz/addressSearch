@@ -87,6 +87,13 @@ class ResolveToDBService:
                 data_modify = []
 
                 for _, row in df.iterrows():
+                    full_name = row["fullname"]
+                    if full_name is None or full_name == "":
+                        continue
+
+                    x = row["x"]
+                    y = row["y"]
+
                     op_flag = row["op_flag"]
                     is_del = row["is_del"]
                     flag = int(op_flag) if op_flag is not None else 0
@@ -106,23 +113,23 @@ class ResolveToDBService:
                     else:
                         raise Exception("flag未知的数字！0=新增  1=更新  2=删除  9=完成")
 
-                    full_name = row["fullname"]
-                    x = row["x"]
-                    y = row["y"]
                     address_parser = self._applicationContext.get_bean("addressParser")
                     resultList, cutListStr = self._addressParseRunner.run(address_parser, model, full_name, x, y)
-                    for result in resultList:
-                        result["op_flag"] = flag
-                        result["id"] = t_id
-                        result["fullname"] = full_name
-                        result["parse_result"] = cutListStr
-                        if flag == DBOperator.INSERT.value:
-                            if is_del == 1:  # 删除后重新新增实际是更新
-                                data_modify.append(result)
-                            else:
-                                data_insert.append(result)
-                        if flag == DBOperator.UPDATE.value:
+                    # 目前这个做法 resultList 多条会有问题，暂时就选第1个
+                    result = resultList[0]
+
+                    # for result in resultList:
+                    result["op_flag"] = flag
+                    result["id"] = t_id
+                    result["fullname"] = full_name
+                    result["parse_result"] = cutListStr
+                    if flag == DBOperator.INSERT.value:
+                        if is_del == 1:  # 删除后重新新增实际是更新
                             data_modify.append(result)
+                        else:
+                            data_insert.append(result)
+                    if flag == DBOperator.UPDATE.value:
+                        data_modify.append(result)
 
                 # 新增
                 if len(data_insert) > 0:

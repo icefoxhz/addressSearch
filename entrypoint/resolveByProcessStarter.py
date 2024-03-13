@@ -31,7 +31,7 @@ class ServiceApplication(ApplicationStarter):
         self._configService = None
 
     def clearLacCustomDict(self):
-        dict_dir = self._application_environment.get("lac.dict_dir")
+        dict_dir = self._application_environment.get("project.lac.dict_dir")
         delete_old_files(dict_dir)
 
     def truncate_address_table(self):

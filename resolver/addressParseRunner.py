@@ -57,19 +57,23 @@ class AddressParseRunner:
 
         if self._print_debug:
             log.debug("py库分词结果: " + str(wordList) + " " + str(wordLacList))
+            print("py库分词结果: " + str(wordList) + " " + str(wordLacList))
 
         # 数字处理
         self._changeWord(wordList, wordLacList)
         if self._print_debug:
             log.debug("数字处理后结果: " + str(wordList))
+            print("数字处理后结果: " + str(wordList))
 
         # wordListTemp = copy.deepcopy(wordList)
         wordListStr = str(wordList)
 
         # 连接符处理
-        self._joinWord(wordList, wordLacList)
+        # self._joinWord(wordList, wordLacList)
+        self._joinWord_low_precision(wordList, wordLacList)
         if self._print_debug:
             log.debug("连接符处理后结果: " + str(wordList))
+            print("连接符处理后结果: " + str(wordList))
 
         address_parser.set_params(x, y, wordList, wordLacList)
 
@@ -144,7 +148,7 @@ class AddressParseRunner:
 
     def _joinWord(self, wordList, wordLacList):
         """
-        连接符处理
+        高精度下的连接符处理（容易无法匹配到）
         :param wordList:
         :return:
         """
@@ -180,3 +184,42 @@ class AddressParseRunner:
                         self._joinWord(wordList, wordLacList)
             except:
                 pass
+
+    def _joinWord_low_precision(self, wordList, wordLacList):
+        """
+        低精度下的连接符处理
+        :param wordList:
+        :return:
+        """
+        d = {}
+        for i in range(0, len(wordList)):
+            try:
+                for symbol in self._num_join_symbols:
+                    # 把连接符去掉
+                    if wordList[i].startswith(symbol) or wordList[i].endswith(symbol):
+                        wordList[i] = wordList[i].replace(symbol, "")
+                        wordLacList[i] = "LOC"
+
+                # 把连接符号都改成 -
+                for symbol in self._num_join_symbols:
+                    if symbol in wordList[i]:
+                        wordList[i] = wordList[i].replace(symbol, "-")
+
+                # 把连接符号的词都分开
+                if "-" in wordList[i]:
+                    ls = wordList[i].split("-")
+                    d[i] = ls
+            except:
+                pass
+
+        # 插入wordList 和  wordLacList
+        addIdx = 0
+        for k, ls in d.items():
+            i = k + addIdx
+            wordList.pop(i)
+            wordLacList.pop(i)
+            for v in ls:
+                wordList.insert(i, v)
+                wordLacList.insert(i, "LOC")
+                i += 1
+            addIdx = len(ls) - 1

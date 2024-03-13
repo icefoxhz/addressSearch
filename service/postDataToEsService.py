@@ -82,8 +82,8 @@ class PostDataToEsService:
                     fieldName = fieldName.lower()
                     if fieldName == "location":
                         data_dict["location"] = {
-                            "lat": getattr(row, "y") if hasattr(row, "y") else None,
-                            "lon": getattr(row, "x") if hasattr(row, "x") else None
+                            "lat": getattr(row, "y") if hasattr(row, "y") else 0.0001,  # 随便给个浮点型
+                            "lon": getattr(row, "x") if hasattr(row, "x") else 0.0001
                         }
                         continue
 

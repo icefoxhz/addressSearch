@@ -18,8 +18,8 @@ class LacModelManager:
     __local_obj = threading.local()
 
     @Value({
-        "lac.model_path": "_model_path",
-        "lac.dict_dir": "_dict_dir",
+        "project.lac.model_path": "_model_path",
+        "project.lac.dict_dir": "_dict_dir",
         "task.execution.pool.max_size": "_max_size",
     })
     def __init__(self):

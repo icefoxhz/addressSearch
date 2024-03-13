@@ -47,12 +47,12 @@ class EsSearchService:
             "street": 20,
             "community": 20,
             "natural_village": 20,
-            "road": 20,
+            "road": 30,
             "courtyard": 20,
-            "group_number": 5,
-            "address_number": 5,
-            "building_name": 20,
-            "building_site": 5,
+            "group_number": 2,
+            "address_number": 2,
+            "building_name": 2,
+            "building_site": 2,
             "unit": 1,
             "floor": 1,
             "room": 1,
@@ -175,7 +175,7 @@ class EsSearchService:
 
                 # 全匹配
                 is_find = False
-                match_percents = ["100%", "90%", "80%", "70%", "60%", "50%", "40%"]
+                match_percents = ["100%", "90%", "80%", "70%", "60%"]
                 current_match_percent = None
                 for match_percent in match_percents:
                     current_match_percent = match_percent
@@ -250,6 +250,7 @@ class EsSearchService:
                 if maxScore == item.get("_score"):
                     res = item.get("_source")
                     res["score"] = item.get("_score")
+                    res["id"] = int(item.get("_id"))
                     val.append(res)
 
                 if len(val) >= self._max_return or item.get("_score") < maxScore:
