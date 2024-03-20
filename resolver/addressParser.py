@@ -7,6 +7,8 @@ from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import 
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value
 
 
+# 使用示例不变
+
 def isNumLetters(s):
     if s is None or s == "":
         return False
@@ -41,6 +43,7 @@ class AddressParser:
             "JUDGE_HAS_WORDS_MUST_NUMBER": "_judge_has_words_must_number",
             "NUM_JOIN_SYMBOLS": "_num_join_symbols",
             "JUDGE_HAS_WORDS_NOT_NUMBER": "_judge_has_words_not_number",
+            "REVERSE_JUDGE_JOIN_WORDS_KEYS": "_reverse_judge_has_words_keys",
             "JUDGE_NOT_HAS_WORDS": "_judge_not_has_words",
             "MULTI_JOIN_SYMBOLS": "_multi_join_symbols",
             "WASH_UNIT_WORDS": "_wash_unit_words",
@@ -67,6 +70,8 @@ class AddressParser:
         self._direct_words_not_drop = None
         self._stop_word_list = None
         self._judge_join_words = None
+        self._reverse_judge_has_words_keys = None
+        # self._wordListForVagueSearch = None
 
         self._x = None
         self._y = None
@@ -115,7 +120,7 @@ class AddressParser:
         self._result = {
             "fullname": None,
             "province": self._province,
-            "city":  self._city,
+            "city": self._city,
             "region": None,
             "street": None,
             "community": None,
@@ -133,6 +138,9 @@ class AddressParser:
             "x": None,
             "y": None,
         }
+
+    # def getVagueSearchWords(self):
+    #     return self._wordListForVagueSearch
 
     def set_params(self, x, y, wordList, wordLacList):
         self._x = x
@@ -191,6 +199,8 @@ class AddressParser:
                     self._wordLacList.pop(i)
         except:
             pass
+
+        # self._wordListForVagueSearch = copy.deepcopy(self._wordList)
 
         # 合并词性顺序是 'LOC', 'p', 'LOC', 'n' 这种的。 比如：'静慧寺东路', '与', '具区路', '交界处'
         # 合并词性顺序是 'm', 'w', 'LOC' 这种的。 比如：'3301', '-', '1室'
@@ -681,6 +691,32 @@ class AddressParser:
 
         self._parseAddressNumberAgain()
 
+        self._splitSymbol()
+
+    def _splitSymbol(self):
+        """
+        把带有 - 的分离
+        """
+        for result in self._resultList:
+            for i in range(len(self._reverse_judge_has_words_keys)):
+                k = self._reverse_judge_has_words_keys[i]
+                if k in result.keys() and "-" in result[k]:
+                    try:
+                        v = str(result[k])
+                        ls = v.split("-")
+                        ls = list(reversed(ls))
+
+                        result[k] = ls.pop(0)
+
+                        for num in ls:
+                            for j in range(i, len(self._reverse_judge_has_words_keys)):
+                                k = self._reverse_judge_has_words_keys[j]
+                                if k not in result.keys() or result[k] is None or result[k] == "":
+                                    result[k] = num
+                                    break
+                    except:
+                        pass
+
     def _parseAddressNumberAgain(self):
         """
         group_number 或 address_number 类似是 70-62 这种，要再次判断是否要解析到 address_number 和 building_site。
@@ -872,6 +908,13 @@ class AddressParser:
         fPosList.clear()
         for i in range(len(wordList)):
             word = wordList[i]
+            try:
+                # 数字不要移除
+                int(word)
+                continue
+            except:
+                pass
+
             if len(word) == 1 and word not in ls:
                 fPosList.append(i)
         self.__removeByPosList(fPosList, wordLacList, wordList)
@@ -984,7 +1027,7 @@ class AddressParser:
                         # 去掉后缀判断词
                         val = val[:len(val) - len(jWord)]
                         # 去掉 "第" 字
-                        if val[0] in self._start_chinese:
+                        if len(val) > 0 and val[0] in self._start_chinese:
                             # 后面如果是数字
                             if isNumLetters(val[1:]):
                                 val = val[1:]

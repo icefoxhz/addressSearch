@@ -69,8 +69,8 @@ class AddressParseRunner:
         wordListStr = str(wordList)
 
         # 连接符处理
-        # self._joinWord(wordList, wordLacList)
-        self._joinWord_low_precision(wordList, wordLacList)
+        self._joinWord(wordList, wordLacList)
+        # self._joinWord_low_precision(wordList, wordLacList)
         if self._print_debug:
             log.debug("连接符处理后结果: " + str(wordList))
             print("连接符处理后结果: " + str(wordList))
@@ -217,9 +217,10 @@ class AddressParseRunner:
         for k, ls in d.items():
             i = k + addIdx
             wordList.pop(i)
+            lac = wordLacList[i]
             wordLacList.pop(i)
             for v in ls:
                 wordList.insert(i, v)
-                wordLacList.insert(i, "LOC")
+                wordLacList.insert(i, lac)
                 i += 1
             addIdx = len(ls) - 1

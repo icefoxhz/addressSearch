@@ -52,6 +52,7 @@ class PostDataToEsService:
         self._db_name = self._configService.get_es_cnf("db_name_address")
         self._ip = self._configService.get_es_cnf("ip")
         self._port = int(self._configService.get_es_cnf("port"))
+        self._es_init()
 
     @Transactional()
     def do_run(self, df, progress_bar=None):
@@ -82,8 +83,8 @@ class PostDataToEsService:
                     fieldName = fieldName.lower()
                     if fieldName == "location":
                         data_dict["location"] = {
-                            "lat": getattr(row, "y") if hasattr(row, "y") else 0.0001,  # 随便给个浮点型
-                            "lon": getattr(row, "x") if hasattr(row, "x") else 0.0001
+                            "lat": getattr(row, "y") if hasattr(row, "y") and getattr(row, "y") is not None else 0.0001,  # 随便给个浮点型
+                            "lon": getattr(row, "x") if hasattr(row, "x") and getattr(row, "y") is not None else 0.0001
                         }
                         continue
 

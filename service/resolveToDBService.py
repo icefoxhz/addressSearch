@@ -113,16 +113,22 @@ class ResolveToDBService:
                     else:
                         raise Exception("flag未知的数字！0=新增  1=更新  2=删除  9=完成")
 
-                    address_parser = self._applicationContext.get_bean("addressParser")
-                    resultList, cutListStr = self._addressParseRunner.run(address_parser, model, full_name, x, y)
-                    # 目前这个做法 resultList 多条会有问题，暂时就选第1个
-                    result = resultList[0]
+                    # address_parser = self._applicationContext.get_bean("addressParser")
+                    # resultList, cutListStr = self._addressParseRunner.run(address_parser, model, full_name, x, y)
+                    # # 目前这个做法 resultList 多条会有问题，暂时就选第1个
+                    # result = resultList[0]
+
+                    address_parser = self._applicationContext.get_bean("addressParseService")
+                    succeed, section_fir, section_main, section_mid = address_parser.run(model, full_name)
+                    if not succeed:
+                        continue
+
+                    result = section_fir | section_main | section_mid
 
                     # for result in resultList:
                     result["op_flag"] = flag
                     result["id"] = t_id
                     result["fullname"] = full_name
-                    result["parse_result"] = cutListStr
                     if flag == DBOperator.INSERT.value:
                         if is_del == 1:  # 删除后重新新增实际是更新
                             data_modify.append(result)

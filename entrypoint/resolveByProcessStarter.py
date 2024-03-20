@@ -1,5 +1,6 @@
 import os
 import sys
+
 # from multiprocessing import freeze_support
 
 # 把父目录放入path， 父目录就是包。 这个需要自己调整
@@ -9,7 +10,7 @@ sys.path.append(root_model_path)
 from time import sleep
 from pySimpleSpringFramework.spring_core.applicationStarter import ApplicationStarter
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import ComponentScan, ConfigDirectories
-from addressSearch.utils.Util import delete_old_files
+from addressSearch.utils.commonTool import CommonTool
 
 
 # 基于 root_model_path 的相对的位置， 因为 root_model_path 就是包
@@ -32,7 +33,7 @@ class ServiceApplication(ApplicationStarter):
 
     def clearLacCustomDict(self):
         dict_dir = self._application_environment.get("project.lac.dict_dir")
-        delete_old_files(dict_dir)
+        CommonTool.delete_old_files(dict_dir)
 
     def truncate_address_table(self):
         parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")

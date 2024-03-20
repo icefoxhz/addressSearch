@@ -4,7 +4,7 @@ import sys
 from pySimpleSpringFramework.spring_core.applicationStarter import ApplicationStarter
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import ComponentScan, ConfigDirectories
 
-from addressSearch.utils.Util import delete_old_files
+from addressSearch.utils.commonTool import CommonTool
 
 # 把父目录放入path， 父目录就是包。 这个需要自己调整
 root_model_path = os.path.dirname(os.path.dirname(os.getcwd()))
@@ -27,7 +27,7 @@ class ServiceApplication(ApplicationStarter):
 
     def clearLacCustomDict(self):
         dict_dir = self._application_environment.get("project.lac.dict_dir")
-        delete_old_files(dict_dir)
+        CommonTool.delete_old_files(dict_dir)
 
     def main(self):
         self._application_environment = self.application_context.get_bean("applicationEnvironment")
