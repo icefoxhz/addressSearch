@@ -4,6 +4,7 @@ from LAC import LAC
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value
 
+from addressSearch.es.schemas import es_schema_field_building_number
 from addressSearch.utils.commonTool import CommonTool
 
 
@@ -71,7 +72,7 @@ class AddressParseService:
         """
         try:
             if not self.acceptAddress(addr_string):
-                return False, None, None, None
+                return False, None, None, None, None
 
             addr_string = self.removeStartWordsIfNecessary(addr_string)
             addr_string = self.removeExtra(addr_string)
@@ -85,15 +86,16 @@ class AddressParseService:
             # 找主体
             is_find_body, body_idx = self.findMainBodyIndex(addr_string, cut_list)
             if not is_find_body:
-                return False, None, None, None
+                return False, None, None, None, None
 
             # 处理并生成 sections
-            address_section_first, address_section_main, address_section_mid = self.create_sections(cut_list, body_idx)
+            address_section_first, address_section_main, address_section_mid, address_section_build_number = self.create_sections(
+                cut_list, body_idx)
 
-            return True, address_section_first, address_section_main, address_section_mid
+            return True, address_section_first, address_section_main, address_section_mid, address_section_build_number
         except Exception as e:
             self.__print(str(e))
-            return False, None, None, None
+            return False, None, None, None, None
 
     def acceptAddress(self, addr_string: str):
         """
@@ -482,6 +484,13 @@ class AddressParseService:
             address_section_mid[field_name] = cut_words[i]
             idx += 1
 
+        address_section_build_number = {es_schema_field_building_number: -99999}
+        if len(address_section_mid) > 0:
+            try:
+                address_section_build_number[es_schema_field_building_number] = int(address_section_mid["mid_1"])
+            except:
+                pass
+
         self.__print("=== sections ===")
-        self.__print(str(address_section_first) + str(address_section_main) + str(address_section_mid))
-        return address_section_first, address_section_main, address_section_mid
+        self.__print(str(address_section_first) + str(address_section_main) + str(address_section_mid) + str(address_section_build_number))
+        return address_section_first, address_section_main, address_section_mid, address_section_build_number

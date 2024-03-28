@@ -3,7 +3,8 @@ from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import 
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Autowired, Value
 
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
-from addressSearch.es.schemas import schemaMain, es_schema_fields_fir, es_schema_fields_main, es_schema_fields_mid
+from addressSearch.es.schemas import es_schema_fields_fir, es_schema_fields_main, es_schema_fields_mid, \
+    copy_schema, add_schema_field, es_schema_field_building_number, es_fullname_field
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.lacModelManageService import LacModelManageService
 from addressSearch.service.addressParseService import AddressParseService
@@ -17,6 +18,7 @@ class EsSearchService:
     @Value({
         "project.print_debug": "_print_debug",
         "project.blur_search": "_blur_search",
+        "project.local_config.db_name_address": "_db_name_address",
         "project.local_config.address_max_return": "_address_max_return",
     })
     def __init__(self):
@@ -24,9 +26,9 @@ class EsSearchService:
         self._blur_search = False
         self._address_table = None
         self._parsed_address_table = None
-        self._db_name = None
         self._ip = None
         self._port = None
+        self._db_name_address = None
         self._distance = None
         self._max_return = None
         self._addressParseService = None
@@ -36,17 +38,24 @@ class EsSearchService:
         self._configService = None
         self._address_max_return = 20
         self._return_multi = False
+        self._es_cli = None
+        self._build_number_tolerance = 15
 
     def _after_init(self):
         self._address_table = self._configService.get_addr_cnf("data_table")
         self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
-        self._db_name = self._configService.get_es_cnf("db_name_address")
         self._ip = self._configService.get_es_cnf("ip")
         self._port = int(self._configService.get_es_cnf("port"))
         self._distance = self._configService.get_es_cnf("point_buffer_distance")
         self._max_return = int(self._configService.get_es_cnf("address_max_return"))
+        self.__conn_es()
 
-        self._es_cli = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+    def __conn_es(self):
+        # 添加额外字段.  深拷贝一份，不能修改老的
+        schemaMainNew = copy_schema()
+        add_schema_field(schemaMainNew, "ex_val")
+
+        self._es_cli = ElasticsearchManger(self._db_name_address, schemaMainNew, self._ip, self._port)
         with self._es_cli as es_conn:
             if es_conn is None:
                 return
@@ -72,16 +81,16 @@ class EsSearchService:
         self._addressParseService = addressParseService
         self._thesaurusService = thesaurusService
 
-    def reset(self):
-        # 清空数据表
-        self._addressMapping.truncate_table(self._address_table)
-        self._addressMapping.truncate_table(self._parsed_address_table)
-
-        # 删了重建es库
-        es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
-        es.deleteIndex(self._db_name)
-        es.create(self._db_name)
-        es.close()
+    # def reset(self):
+    #     # 清空数据表
+    #     self._addressMapping.truncate_table(self._address_table)
+    #     self._addressMapping.truncate_table(self._parsed_address_table)
+    #
+    #     # 删了重建es库
+    #     es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+    #     es.deleteIndex(self._db_name)
+    #     es.create(self._db_name)
+    #     es.close()
 
     def _run_address_search_not_by_thesaurus(self, address_string):
         """
@@ -93,14 +102,16 @@ class EsSearchService:
             print("\n-----------------------------------------------------\n")
         # 分词
         with self._lacModelManageService as model:
-            succeed, sections_fir, sections_main, sections_mid = self._addressParseService.run(model, address_string)
+            succeed, sections_fir, sections_main, sections_mid, sections_building_number = self._addressParseService.run(
+                model, address_string)
 
         if not succeed or sections_main is None or len(sections_main) == 0:
             log.error("分詞失敗，地址: " + address_string)
             return False, {}
 
         # 生成查询参数
-        search_params = self.__create_address_search_params(sections_fir, sections_main, sections_mid)
+        search_params = self.__create_address_search_params(sections_fir, sections_main, sections_mid,
+                                                            sections_building_number)
 
         # 搜索
         succeed, result = self.__address_search(search_params)
@@ -136,13 +147,19 @@ class EsSearchService:
 
         return succeed, result
 
-    def __create_address_search_params(self, sections_fir, sections_main, sections_mid):
+    def __create_address_search_params(self, sections_fir, sections_main, sections_mid, sections_building_number):
         """
         生成搜索参数, 尝试多次搜索，每次都减少搜索条件，但是 main必须包含
         """
         d_fir = None
         d_main = None
         d_mid = None
+
+        all_value_list = list(dict(sections_fir | sections_main | sections_mid).values())
+        all_search_field_list = es_schema_fields_fir + es_schema_fields_main + es_schema_fields_mid
+
+        # 评分函数
+        script = self._get_score_script(all_search_field_list, all_value_list)
 
         # 组织主体前部分的搜索
         if sections_fir is not None and len(sections_fir) > 0:
@@ -183,6 +200,19 @@ class EsSearchService:
                     }
                 )
 
+            val = sections_building_number[es_schema_field_building_number]
+            if val > 0:
+                d_mid["bool"]["should"].append(
+                    {
+                        "range": {
+                            es_schema_field_building_number: {
+                                "gte": val - self._build_number_tolerance,
+                                "lte": val + self._build_number_tolerance
+                            }
+                        }
+                    }
+                )
+
         # 创建搜索组合
         if d_fir is not None and d_mid is not None:
             lss = [[d_fir, d_main, d_mid], [d_main, d_mid], [d_fir, d_main], [d_main]]
@@ -197,8 +227,15 @@ class EsSearchService:
         for ls in lss:
             search_param = {
                 "query": {
-                    "bool": {
-                        "must": ls
+                    "function_score": {
+                        "score_mode": "sum",
+                        "boost_mode": "replace",
+                        "functions": [script],
+                        "query": {
+                            "bool": {
+                                "must": ls
+                            }
+                        }
                     }
                 },
                 "size": int(self._address_max_return)
@@ -216,7 +253,7 @@ class EsSearchService:
 
         for search_param in search_params:
             if self._print_debug:
-                print("search_param :" + str(search_param))
+                print("search_param :" + str(search_param["query"]["function_score"]["query"]))
             succeed, search_result = self._do_address_search(search_param)
             if succeed:
                 break
@@ -235,28 +272,39 @@ class EsSearchService:
         """
         模糊匹配
         """
+
         # 主体之前和主体
         search_list = list(sections_fir.values()) + list(sections_main.values())
 
-        s = "*".join(search_list)
+        all_search_list = list(sections_fir.values()) + list(sections_main.values()) + list(sections_mid.values())
+        all_search_field_list = es_schema_fields_fir + es_schema_fields_main + es_schema_fields_mid
+        script = self._get_score_script(all_search_field_list, all_search_list)
+
+        search_string = "*".join(search_list)
         search_param = {
             "query": {
-                "bool": {
-                    "must": []
+                "function_score": {
+                    "score_mode": "sum",
+                    "boost_mode": "replace",
+                    "functions": [script],
+                    "query": {
+                        "bool": {
+                            "must": [{
+                                "query_string": {
+                                    "default_field": es_fullname_field,
+                                    "query": "*" + search_string + "*"
+                                }
+                            }]
+                        }
+                    }
                 }
             },
             "size": int(self._address_max_return)
         }
-        search_param["query"]["bool"]["must"].append({
-            "query_string": {
-                "default_field": es_schema_fields_main[0],
-                "query": "*" + s + "*"
-            }
-        })
 
         if self._print_debug:
             print(">>>>>>>>>> 模糊查詢 <<<<<<<<<<")
-            print(search_param)
+            print("search_param :" + str(search_param["query"]["function_score"]["query"]))
 
         search_result = self._es_cli.query(search_param)
         result = self._get_query_result(search_result)
@@ -344,3 +392,33 @@ class EsSearchService:
         result["score"] = items[0].get("_score")
         result["id"] = int(items[0].get("_id"))
         return True, result
+
+    @staticmethod
+    def _get_score_script(all_search_field_list, all_value_list):
+        script = {
+            "script_score": {
+                "script": {
+                    "source": """
+                                   double score = 0;
+                                    for (int i = 0; i < params.query_field.length; i++) {
+                                      if (doc.containsKey(params.query_field[i]) && doc[params.query_field[i]].size() > 0) {
+                                        for (int j = 0; j < params.query_value.length; j++) {
+                                          if (doc[params.query_field[i]].value == params.query_value[j]) {
+                                            score += 1; // 匹配度加1
+                                            break; // 如果有匹配，则跳出内层循环
+                                          }
+                                        }
+                                      }
+                                    }
+                                    return score / params.query_value.length;
+
+                                  """,
+                    "lang": "painless",
+                    "params": {
+                        "query_field": all_search_field_list,
+                        "query_value": all_value_list
+                    }
+                }
+            }
+        }
+        return script

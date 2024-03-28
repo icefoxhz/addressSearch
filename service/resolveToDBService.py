@@ -9,6 +9,7 @@ from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
 from tqdm import tqdm
 
 from addressSearch.enums.dbOperator import DBOperator
+from addressSearch.es.schemas import es_schema_field_building_number
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.configService import ConfigService
 from addressSearch.service.lacModelManageService import LacModelManageService
@@ -116,11 +117,11 @@ class ResolveToDBService:
                     # result = resultList[0]
 
                     address_parser = self._applicationContext.get_bean("addressParseService")
-                    succeed, section_fir, section_main, section_mid = address_parser.run(model, full_name)
+                    succeed, section_fir, section_main, section_mid, section_build_number = address_parser.run(model, full_name)
                     if not succeed:
                         continue
 
-                    result = section_fir | section_main | section_mid
+                    result = section_fir | section_main | section_mid | section_build_number
 
                     # for result in resultList:
                     result["op_flag"] = flag
