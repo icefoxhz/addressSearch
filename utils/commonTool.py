@@ -116,3 +116,4 @@ class CommonTool:
                 # 如果文件日期早于20分钟前，就删除文件
                 if current_time - modified_time > time_difference:
                     os.remove(file_path)
+

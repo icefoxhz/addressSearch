@@ -10,8 +10,8 @@ from tqdm import tqdm
 
 from addressSearch.enums.dbOperator import DBOperator
 from addressSearch.mapping.addressMapping import AddressMapping
-from addressSearch.resolver.addressParseRunner import AddressParseRunner
 from addressSearch.service.configService import ConfigService
+from addressSearch.service.lacModelManageService import LacModelManageService
 
 
 @Component
@@ -25,8 +25,7 @@ class ResolveToDBService:
         self._self = None
 
         self._databaseManager = None
-        self._lacModelManager = None
-        self._addressParseRunner = None
+        self._lacModelManageService = None
         self._addressMapping = None
         self._applicationContext = None
         self._configService = None
@@ -44,21 +43,19 @@ class ResolveToDBService:
 
     @Autowired
     def set_params(self,
-                   lacModelManager,
+                   lacModelManageService: LacModelManageService,
                    resolveToDBService,
                    applicationContext,
                    configService: ConfigService,
                    addressMapping: AddressMapping,
-                   addressParseRunner: AddressParseRunner,
                    databaseManager: DatabaseManager,
                    executorTaskManager: ExecutorTaskManager
                    ):
         self._configService = configService
-        self._lacModelManager = lacModelManager
+        self._lacModelManageService = lacModelManageService
         self._self = resolveToDBService
         self._applicationContext = applicationContext
         self._addressMapping = addressMapping
-        self._addressParseRunner = addressParseRunner
         self._databaseManager = databaseManager
         self._executorTaskManager = executorTaskManager
 
@@ -77,7 +74,7 @@ class ResolveToDBService:
 
     @Transactional()
     def do_run(self, df, progress_bar=None):
-        with self._lacModelManager as model:
+        with self._lacModelManageService as model:
             try:
                 ids_insert = []
                 ids_update = []

@@ -16,7 +16,6 @@ sys.path.append(root_model_path)
                "../../addressSearch/mapping",
                "../../addressSearch/entity",
                "../../addressSearch/controller",
-               "../../addressSearch/resolver",
                )
 # 这里修改成自己的配置文件位置（相对当前这个启动文件的位置）
 @ConfigDirectories("../../config")

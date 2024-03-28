@@ -1,12 +1,10 @@
 import asyncio
-import copy
-import re
-from typing import Dict
+
 import uvicorn
-from starlette.responses import JSONResponse
-from uvicorn import Config
 from fastapi import FastAPI, Request
 from pySimpleSpringFramework.spring_core.log import log
+from starlette.responses import JSONResponse
+from uvicorn import Config
 
 from addressSearch.entrypoint.applicationStarter import serviceApplication
 
@@ -18,11 +16,7 @@ semaphore = asyncio.Semaphore(10000)
 rest_app = FastAPI()
 
 
-# _JUDGE_SCORE = 200
-# _JUDGE_SCORE_MIN = 100
-
-
-def _genRestResult(key, resultDict, error):
+def _make_rest_result(key, resultDict, error):
     result = {
         "msg": str(error),
         "data": {},
@@ -60,7 +54,7 @@ async def handle_os_error(request, exc):
 # ================================================================================
 
 @rest_app.post("/searchByAddress")
-async def appSearchByAddress(request: Request):
+async def searchByAddress(request: Request):
     """
     参数格式
     {
@@ -76,7 +70,67 @@ async def appSearchByAddress(request: Request):
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_address_search(address_string)
-    return _genRestResult(key, result, "未找到" if not succeed else None)
+    return _make_rest_result(key, result, "未找到" if not succeed else None)
+
+
+@rest_app.post("/searchByAddressEx")
+async def searchByAddressEx(request: Request):
+    """
+    参数格式
+    {
+        "1": "无锡市惠山区洛社镇五秦村强巷52号"
+    }
+
+    :param request:
+    :return:
+    """
+    jsonRequest = await request.json()
+    key = list(jsonRequest.keys())[0]
+    address_string = list(jsonRequest.values())[0]
+
+    esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+    esSearchService.set_return_multi()
+    succeed, result = esSearchService.run_address_search(address_string)
+    return _make_rest_result(key, result, "未找到" if not succeed else None)
+
+
+@rest_app.post("/searchByPoint")
+async def searchByPoint(request: Request):
+    """
+    参数格式
+    {
+        "1": "119.87630533652268,31.31180405900834"
+    }
+    :param request:
+    :return:
+    """
+    jsonRequest = await request.json()
+    key = list(jsonRequest.keys())[0]
+    points_string = list(jsonRequest.values())[0]
+
+    esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+    succeed, result = esSearchService.run_search_by_point(points_string)
+    return _make_rest_result(key, result, "未找到" if not succeed else None)
+
+
+@rest_app.post("/searchByPointEx")
+async def searchByPointEx(request: Request):
+    """
+    参数格式
+    {
+        "1": "119.87630533652268,31.31180405900834"
+    }
+    :param request:
+    :return:
+    """
+    jsonRequest = await request.json()
+    key = list(jsonRequest.keys())[0]
+    points_string = list(jsonRequest.values())[0]
+
+    esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+    esSearchService.set_return_multi()
+    succeed, result = esSearchService.run_search_by_point(points_string)
+    return _make_rest_result(key, result, "未找到" if not succeed else None)
 
 
 @rest_app.post("/reset")

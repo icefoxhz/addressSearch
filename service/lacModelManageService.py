@@ -14,7 +14,7 @@ from addressSearch.service.configService import ConfigService
 
 
 @Component
-class LacModelManager:
+class LacModelManageService:
     __local_obj = threading.local()
 
     @Value({
@@ -25,14 +25,14 @@ class LacModelManager:
     def __init__(self):
         self._model_path = None
         self._dict_path = None
-        self._max_size = None
         self._dict_dir = None
         self._dict_path = None
         self._configMapping = None
         self._configService = None
         self._databaseManager = None
+        self._max_size = 2
 
-        self._workDir = os.path.abspath('.')
+        self._workDir = os.path.abspath('../service')
         self._currentDir = os.path.dirname(__file__)
 
         self._lock = threading.Lock()
@@ -96,7 +96,7 @@ class LacModelManager:
         # 如果在 with 语句块中出现异常，exc_type、exc_value 和 traceback 参数将包含异常信息
         if exc_type is not None:
             # raise Exception(f"出现异常,异常类型: {exc_type}, 异常信息: {exc_value}")
-            log.error(f"LacModelManager __exit__ 出现异常,异常类型: {exc_type}, 异常信息: {exc_value}")
+            log.error(f"LacModelManageService __exit__ 出现异常,异常类型: {exc_type}, 异常信息: {exc_value}")
             # 返回False则会让异常继续向上抛出
             return False
 

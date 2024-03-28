@@ -2,39 +2,65 @@ import os.path
 import re
 from LAC import LAC
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
+from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value
 
 from addressSearch.utils.commonTool import CommonTool
 
 
 @Component
 class AddressParseService:
+    @Value({
+        "project.print_debug": "_print_debug",
+        "project.big_region.province": "_provinces",
+        "project.big_region.city": "_cities",
+        "project.big_region.region": "_regions",
+        "project.big_region.street": "_streets",
+    })
     def __init__(self):
-        self._debug = False
-        self._provinces = ["江苏省", "江苏"]
-        self._cities = ["无锡市", "无锡"]
-        self._regions = ["新吴区", "新区"]
-        self._streets = ["梅村街道", "旺庄街道", "鸿山街道", "江溪街道", "硕放街道", "新安街道"]
+        self._print_debug = False
 
+        # --------------------------------
+        self._provinces = None
+        self._cities = None
+        self._regions = None
+        self._streets = None
+
+        # --------------------------------
         self._building_chinese_words = ["幢", "栋", "区", "号楼", "楼",
                                         "号厂区", "号东厂区", "号南厂区", "号西厂区", "号北厂区",
                                         ]
         self._courtyard_chinese_words = ["期"]
+
+        # --------------------------------
+        self._JOIN_SYMBOL = "-"
         self._join_symbols = ["－", "—", "～", "~", "#", "/", "、", ",", "，", " ",
+                              "内东", "内南", "内西", "内北",
                               "东边", "南边", "西边", "北边",
                               "东面", "南面", "西面", "北面",
                               "东侧", "南侧", "西侧", "北侧",
                               ]
-        self._join_common_symbol = "-"
 
-        self._extra_symbols = [
-            ["(", ")"],
-            ["（", "）"],
-            ["[", "]"],
-            ["【", "】"]
-        ]
+        self._join_re_patterns_get_front = [r'向(.*?)米',
+                                            r'东(.*?)米',
+                                            r'西(.*?)米',
+                                            r'南(.*?)米',
+                                            r'北(.*?)米',
+                                            ]
+
+        self._join_re_patterns_get_behind = [r'路与(.*?)路交叉口',
+                                             r'路与(.*?)路交界处',
+                                             r'路与(.*?)路交汇处',
+                                             ]
+
+        # --------------------------------
+        self._extra_symbols = [["(", ")"],
+                               ["（", "）"],
+                               ["[", "]"],
+                               ["【", "】"]
+                               ]
 
     def __print(self, msg):
-        if self._debug:
+        if self._print_debug:
             print(msg)
 
     def run(self, model: LAC, addr_string: str):
@@ -51,16 +77,19 @@ class AddressParseService:
             addr_string = self.removeExtra(addr_string)
             self.__print("移除无用信息: " + addr_string)
 
-            _, addr_string = self.cutAddress(addr_string)
+            _, addr_string = self.cutAddress(model, addr_string)
 
             # 分詞並處理
             cut_list = self.participleAndProcess(model, addr_string)
 
+            # 找主体
             is_find_body, body_idx = self.findMainBodyIndex(addr_string, cut_list)
             if not is_find_body:
                 return False, None, None, None
 
+            # 处理并生成 sections
             address_section_first, address_section_main, address_section_mid = self.create_sections(cut_list, body_idx)
+
             return True, address_section_first, address_section_main, address_section_mid
         except Exception as e:
             self.__print(str(e))
@@ -73,14 +102,13 @@ class AddressParseService:
         :return:
         """
         # 江苏省无锡市新吴区硕放街道机场南路与南开路交叉口东100米
-        patterns = [
-            r'(.*?)路与(.*?)路(.*?)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, addr_string)
-            if match:
-                self.__print("无法处理太模糊地址: " + addr_string)
-                return False
+        # patterns = [
+        # ]
+        # for pattern in patterns:
+        #     match = re.search(pattern, addr_string)
+        #     if match:
+        #         self.__print("无法处理太模糊地址: " + addr_string)
+        #         return False
         return True
 
     def removeStartWordsIfNecessary(self, addr_string: str):
@@ -118,26 +146,43 @@ class AddressParseService:
 
         return addr_string
 
-    def cutAddress(self, addr_string: str):
+    def cutAddress(self, model: LAC, addr_string: str):
         """
         先截取楼栋， 如果截取不到，就尝试截取到小区院落
+        :param model:
         :param addr_string:
         :return:
         """
-        cut_succeed, addr_string = self.__cutToBuilding(addr_string)
+        cut_succeed, addr_string = self.__cutToBuilding(model, addr_string)
         if not cut_succeed:
             cut_succeed, addr_string = self.__cutToCourtyardByChineseWords(addr_string)
         return cut_succeed, addr_string
 
-    def __cutToBuilding(self, addr_string: str):
+    def __cutToBuilding(self, model: LAC, addr_string: str):
         """
         截取到楼栋的位置，楼栋之后的去掉
+        :param model:
         :param addr_string:
         :return:
         """
+
+        # 交叉口这种先处理一下, 这步总是要处理
+        _, addr_string = self.__cutToBuildingByJoinRePatterns(model,
+                                                              addr_string,
+                                                              self._join_re_patterns_get_behind,
+                                                              get_front=False)
+
         cut_succeed, addr_string = self.__cutToBuildingByChineseWords(addr_string)
+
         if not cut_succeed:
             cut_succeed, addr_string = self.__cutToBuildingByJoinSymbols(addr_string)
+
+        if not cut_succeed:
+            cut_succeed, addr_string = self.__cutToBuildingByJoinRePatterns(model,
+                                                                            addr_string,
+                                                                            self._join_re_patterns_get_front,
+                                                                            get_front=True)
+
         return cut_succeed, addr_string
 
     def __cutToCourtyardByChineseWords(self, addr_string: str):
@@ -213,16 +258,41 @@ class AddressParseService:
         :return:
         """
         cut_succeed = False
-        # 2. 根据符号判断
+        # 根据符号判断
         for num_symbol in self._join_symbols:
-            addr_string = addr_string.replace(num_symbol, self._join_common_symbol)
+            addr_string = addr_string.replace(num_symbol, self._JOIN_SYMBOL)
 
-        if self._join_common_symbol in addr_string:
-            ls = addr_string.split(self._join_common_symbol)
+        if self._JOIN_SYMBOL in addr_string:
+            ls = addr_string.split(self._JOIN_SYMBOL)
             # ls[1:] 是楼栋之后的地址, 以后解析门牌会用到
             addr_string = ls[0]
             self.__print("截取到楼栋: " + addr_string)
             cut_succeed = True
+
+        return cut_succeed, addr_string
+
+    @staticmethod
+    def __cutToBuildingByJoinRePatterns(model: LAC, addr_string: str, re_list, get_front=True):
+        """
+        根据正则判断截取到楼栋的位置，楼栋之后的去掉
+        :param model:
+        :param addr_string:
+        :param re_list:
+        :param get_front:
+        :return:
+        """
+        # 獲取加載的字典表
+        model_dict = model.__getattribute__("model").custom.dictitem
+
+        cut_succeed = False
+        # 根据正则判断
+        for pattern in re_list:
+            match = re.search(pattern, addr_string)
+            if match:
+                result = match.group(0)
+                # 不在字典内就分割出去
+                if result not in model_dict.keys():
+                    addr_string = addr_string.split(result)[0] if get_front else addr_string.split(result)[1]
 
         return cut_succeed, addr_string
 
@@ -240,10 +310,11 @@ class AddressParseService:
         self.removeBigRegions(cut_list)
         self.__print("分词并处理（removeBigRegions）: " + str(cut_list))
 
+        self.removeSingleChinese(cut_list)
+        self.__print("分词并处理（removeUselessWords）: " + str(cut_list))
+
         self.removeUselessWordsByLac(model, cut_list)
         self.__print("分词并处理（removeUselessWordsByLac）: " + str(cut_list))
-
-
 
         self.preProcess(cut_list)
         self.__print("分词并处理（preProcess）: " + str(cut_list))
@@ -269,6 +340,28 @@ class AddressParseService:
                 remove_idx_ls.insert(0, i)
             elif cut_words[i] in self._streets:
                 remove_idx_ls.insert(0, i)
+
+        for idx in remove_idx_ls:
+            cut_words.pop(idx)
+            lac_words.pop(idx)
+
+    @staticmethod
+    def removeSingleChinese(cut_list):
+        # c_word_list = []
+        cut_words = cut_list[0]
+        lac_words = cut_list[1]
+
+        remove_idx_ls = []
+        for i in range(len(cut_words)):
+            word = cut_words[i]
+            # 只有1个汉字
+            if len(word) == 1 and CommonTool.has_chinese_characters(word):
+                remove_idx_ls.insert(0, i)
+                continue
+
+            # for c_word in c_word_list:
+            #     if word == c_word:
+            #         remove_idx_ls.insert(0, i)
 
         for idx in remove_idx_ls:
             cut_words.pop(idx)
@@ -321,6 +414,12 @@ class AddressParseService:
                 matches = re.findall(r'[a-zA-Z0-9]+', word)
                 if len(matches) > 0:
                     cut_words[i] = matches[0]
+
+        # 这个判断不准确，有时候准确的词也会被处理掉
+        # # 2. 判断是否还有词性是 LOC、ORG的存在. 如果没有说明无用了
+        # if "LOC" not in lac_words and "ORG" not in lac_words:
+        #     cut_words.clear()
+        #     lac_words.clear()
 
     def findMainBodyIndex(self, addr_string: str, cut_list: list):
         """
@@ -386,29 +485,3 @@ class AddressParseService:
         self.__print("=== sections ===")
         self.__print(str(address_section_first) + str(address_section_main) + str(address_section_mid))
         return address_section_first, address_section_main, address_section_mid
-
-    def cutToBuildingTest(self, model, file_path):
-        """
-        测试截取对不对。  txt 格式如下( |前面是源地址， | 后面是期待地址):
-        =====================================================
-        无锡市新吴区金城东路297-2-1711|金城东路297
-        无锡市新吴区纺城大道298-C4-403|纺城大道298
-        无锡市南方不锈钢市场东一路8116-8118号|南方不锈钢市场东一路8116
-        无锡市新吴区江溪街道金城东路380号|金城东路380号
-        =====================================================
-
-        :param model:
-        :param file_path:
-        :return:
-        """
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='gbk') as file:
-                lines = file.readlines()
-                for line in lines:
-                    ls = line.split("|")
-                    addr_s = ls[0]
-                    addr_t = ls[1].replace("\n", "")
-                    result = self.run(model, addr_s)
-                    if result != addr_t:
-                        self.__print(addr_s + " => " + str(result) + "   |   " + addr_t)
-

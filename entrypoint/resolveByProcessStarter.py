@@ -18,7 +18,6 @@ from addressSearch.utils.commonTool import CommonTool
                "../../addressSearch/mapping",
                "../../addressSearch/entity",
                "../../addressSearch/controller",
-               "../../addressSearch/resolver",
                )
 # 这里修改成自己的配置文件位置（相对当前这个启动文件的位置）
 @ConfigDirectories("../../config")
@@ -83,15 +82,14 @@ def parse_process(app):
     executorTaskManager = app.application_context.get_bean("executorTaskManager")
     process_count = executorTaskManager.core_num
 
-    min_batch = 50
-    if data_count <= min_batch * process_count:
-        process_count = int(data_count / min_batch if data_count % min_batch == 0 else data_count / min_batch + 1)
-        process_count = 1 if process_count == 0 else process_count
-        batch_size = int(data_count / process_count + 1)  # 直接 + 1 省的判断了
-    else:
+    min_size = 500
+    if data_count > process_count * min_size:
         batch_size = data_count / process_count
-        batch_size = int(batch_size if data_count % process_count == 0 else batch_size + 1)
-    # app.truncate_address_table()
+        if data_count % process_count != 0:
+            process_count += 1
+    else:
+        batch_size = data_count
+        process_count = 1
 
     for i in range(process_count):
         start = i * batch_size
@@ -99,6 +97,32 @@ def parse_process(app):
         # print(start, end)
         executorTaskManager.submit(task_parse, True, None, start, end)
     executorTaskManager.wait_completed()
+
+
+# def parse_process(app):
+#     data_count = app.get_address_data_count()
+#     if data_count == 0:
+#         return
+#
+#     executorTaskManager = app.application_context.get_bean("executorTaskManager")
+#     process_count = executorTaskManager.core_num
+#
+#     min_batch = 50
+#     if data_count <= min_batch * process_count:
+#         process_count = int(data_count / min_batch if data_count % min_batch == 0 else data_count / min_batch + 1)
+#         process_count = 1 if process_count == 0 else process_count
+#         batch_size = int(data_count / process_count + 1)  # 直接 + 1 省的判断了
+#     else:
+#         batch_size = data_count / process_count
+#         batch_size = int(batch_size if data_count % process_count == 0 else batch_size + 1)
+#     # app.truncate_address_table()
+#
+#     for i in range(process_count):
+#         start = i * batch_size
+#         end = start + batch_size
+#         # print(start, end)
+#         executorTaskManager.submit(task_parse, True, None, start, end)
+#     executorTaskManager.wait_completed()
 
 
 def post_to_es(app):
