@@ -6,3 +6,9 @@ class DBOperator(Enum):
     UPDATE = 1
     DELETE = 2
     COMPLETE = 9
+
+
+class RestRet(Enum):
+    SUCCEED = 200
+    FAILED = 0
+

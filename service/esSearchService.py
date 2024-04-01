@@ -399,20 +399,25 @@ class EsSearchService:
             "script_score": {
                 "script": {
                     "source": """
-                                   double score = 0;
-                                    for (int i = 0; i < params.query_field.length; i++) {
-                                      if (doc.containsKey(params.query_field[i]) && doc[params.query_field[i]].size() > 0) {
-                                        for (int j = 0; j < params.query_value.length; j++) {
-                                          if (doc[params.query_field[i]].value == params.query_value[j]) {
-                                            score += 1; // 匹配度加1
-                                            break; // 如果有匹配，则跳出内层循环
-                                          }
-                                        }
+                               double found_count = 0;
+
+                               int query_value_length = params.query_value.length;
+                               int query_field_length = params.query_field.length;
+
+                                for (int i = 0; i < query_field_length; i++) {
+                                  if (doc.containsKey(params.query_field[i]) && doc[params.query_field[i]].size() > 0) {
+                                    for (int j = 0; j < query_value_length; j++) {
+                                      if (doc[params.query_field[i]].value == params.query_value[j]) {
+                                        found_count += 1; // 匹配度加1
+                                        break;
                                       }
                                     }
-                                    return score / params.query_value.length;
+                                  }
+                                }
+                                // 找到数量的百分比作为评分
+                                return found_count / query_value_length;
 
-                                  """,
+                              """,
                     "lang": "painless",
                     "params": {
                         "query_field": all_search_field_list,

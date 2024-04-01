@@ -7,6 +7,7 @@ from starlette.responses import JSONResponse
 from uvicorn import Config
 
 from addressSearch.entrypoint.applicationStarter import serviceApplication
+from addressSearch.enums.dbOperator import RestRet
 
 # 在这里导入自己的serviceApplication实例
 
@@ -20,13 +21,13 @@ def _make_rest_result(key, resultDict, error):
     result = {
         "msg": str(error),
         "data": {},
-        "code": 0
+        "code": RestRet.FAILED.value
     }
 
     if error is None or str(error) == "":
         result["msg"] = "succeed"
         result["data"] = resultDict
-        result["code"] = 200
+        result["code"] = RestRet.SUCCEED.value
 
     # return json.dumps(result, ensure_ascii=False)
     return {key: result}
@@ -144,13 +145,13 @@ async def addressReset():
         esSearchService.reset()
         return {
             "msg": "succeed",
-            "code": 1
+            "code": RestRet.SUCCEED.value
         }
     except Exception as e:
         log.error("reset error =>" + str(e))
         return {
             "msg": str(e),
-            "code": 0
+            "code": RestRet.FAILED.value
         }
 
 
@@ -168,14 +169,14 @@ async def addressCreateByFile(request: Request):
         ret = fileImportService.run(file, table)
         return {
             "msg": "succeed" if ret else "failed",
-            "code": 1 if ret else 0
+            "code": RestRet.SUCCEED.value if ret else RestRet.FAILED.value
         }
 
     except Exception as e:
         log.error("reset error =>" + str(e))
         return {
             "msg": str(e),
-            "code": 0
+            "code": RestRet.FAILED.value
         }
 
 
