@@ -3,6 +3,7 @@ import os
 import sys
 
 root_model_path = os.path.dirname(os.path.dirname(os.getcwd()))
+# print("root_model_path=", root_model_path)
 sys.path.append(root_model_path)
 
 # 在这里导入自己的serviceApplication 和 start_rest_service

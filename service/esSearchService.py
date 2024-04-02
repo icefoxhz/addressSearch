@@ -18,7 +18,6 @@ class EsSearchService:
     @Value({
         "project.print_debug": "_print_debug",
         "project.blur_search": "_blur_search",
-        "project.local_config.db_name_address": "_db_name_address",
         "project.local_config.address_max_return": "_address_max_return",
     })
     def __init__(self):
@@ -46,6 +45,7 @@ class EsSearchService:
         self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
         self._ip = self._configService.get_es_cnf("ip")
         self._port = int(self._configService.get_es_cnf("port"))
+        self._db_name_address = self._configService.get_es_cnf("db_name_address")
         self._distance = self._configService.get_es_cnf("point_buffer_distance")
         self._max_return = int(self._configService.get_es_cnf("address_max_return"))
         self.__conn_es()

@@ -61,6 +61,8 @@ class ConfigService:
             config_value = row['config_value']
             self.__es_dict[config_name] = config_value
 
+        print()
+
     def _load_local_config(self):
         self.__addr_dict = {
             "synonyms_table": self._synonyms_table,

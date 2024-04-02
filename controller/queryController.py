@@ -2,6 +2,7 @@ import asyncio
 
 import uvicorn
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pySimpleSpringFramework.spring_core.log import log
 from starlette.responses import JSONResponse
 from uvicorn import Config
@@ -15,6 +16,17 @@ from addressSearch.enums.dbOperator import RestRet
 semaphore = asyncio.Semaphore(10000)
 
 rest_app = FastAPI()
+
+# 添加CORSMiddleware到FastAPI应用中，并配置允许的跨域选项
+rest_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 这里设置允许所有来源，也可以替换成具体的域名列表，如 ["http://example.com", "https://other-example.com"]
+    allow_credentials=True,  # 设置为True时，允许带有凭据（如cookies）的跨域请求；为False时不允许。
+    allow_methods=["*"],  # 允许所有HTTP方法，也可以设置为具体的方法列表，如 ["GET", "POST"]
+    allow_headers=["*"],  # 允许所有请求头，也可以设置为具体的请求头列表
+    # expose_headers=["X-Custom-Header"],  # 可选，设置浏览器可以获取到的响应头
+    # max_age=3600  # 允许预检请求的结果缓存的时间，单位为秒
+)
 
 
 def _make_rest_result(key, resultDict, error):

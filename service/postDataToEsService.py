@@ -81,10 +81,12 @@ class PostDataToEsService:
                 data_dict = {}
                 for fieldName in schemaMain["mappings"]["properties"].keys():
                     fieldName = fieldName.lower()
-                    if fieldName == "location":
+                    if (fieldName == "location"
+                            and hasattr(row, "x") and getattr(row, "x") is not None
+                            and hasattr(row, "y") and getattr(row, "y") is not None):
                         data_dict["location"] = {
-                            "lat": getattr(row, "y") if hasattr(row, "y") and getattr(row, "y") is not None else 0.0001,  # 随便给个浮点型
-                            "lon": getattr(row, "x") if hasattr(row, "x") and getattr(row, "y") is not None else 0.0001
+                            "lat": getattr(row, "y"),
+                            "lon": getattr(row, "x")
                         }
                         continue
 
