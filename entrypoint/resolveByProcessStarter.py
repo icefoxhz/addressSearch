@@ -82,13 +82,13 @@ def parse_process(app):
     executorTaskManager = app.application_context.get_bean("executorTaskManager")
     process_count = executorTaskManager.core_num
 
-    min_size = 500
+    min_size = 500000
     if data_count > process_count * min_size:
-        batch_size = data_count / process_count
+        batch_size = int(data_count / process_count)
         if data_count % process_count != 0:
             process_count += 1
     else:
-        batch_size = data_count
+        batch_size = int(data_count)
         process_count = 1
 
     for i in range(process_count):

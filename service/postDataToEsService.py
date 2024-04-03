@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from addressSearch.enums.dbOperator import DBOperator
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
-from addressSearch.es.schemas import schemaMain
+from addressSearch.es.schemas import schemaMain, es_fullname_field
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.configService import ConfigService
 
@@ -20,6 +20,9 @@ from addressSearch.service.configService import ConfigService
 class PostDataToEsService:
     @Value({
         "project.tables.batch_size": "_batch_size",
+        "project.standard.x_field_name": "_x_field_name",
+        "project.standard.y_field_name": "_y_field_name",
+        "project.standard.address_field_name": "_address_field_name",
     })
     def __init__(self):
         self._self = None
@@ -30,6 +33,10 @@ class PostDataToEsService:
         self._ip = None
         self._port = None
         self._batch_size = None
+        self._x_field_name = None
+        self._y_field_name = None
+        self._ID_FIELD_NAME = "id"
+        self._address_field_name = None
         self._executorTaskManager = None
 
     @Autowired
@@ -67,7 +74,7 @@ class PostDataToEsService:
         for row in df.itertuples():
             flag = int(getattr(row, "op_flag"))
 
-            dataId = getattr(row, "id")
+            dataId = getattr(row, self._ID_FIELD_NAME)
             ids.append(dataId)
 
             # 删除
@@ -82,20 +89,27 @@ class PostDataToEsService:
                 for fieldName in schemaMain["mappings"]["properties"].keys():
                     fieldName = fieldName.lower()
                     if (fieldName == "location"
-                            and hasattr(row, "x") and getattr(row, "x") is not None
-                            and hasattr(row, "y") and getattr(row, "y") is not None):
+                            and hasattr(row, self._x_field_name) and getattr(row, self._x_field_name) is not None
+                            and hasattr(row, self._y_field_name) and getattr(row, self._y_field_name) is not None):
                         data_dict["location"] = {
-                            "lat": getattr(row, "y"),
-                            "lon": getattr(row, "x")
+                            self._y_field_name: getattr(row, self._y_field_name),
+                            self._x_field_name: getattr(row, self._x_field_name)
                         }
                         continue
+
+                    if fieldName == es_fullname_field:
+                        fieldName = str(self._address_field_name).lower()
 
                     if hasattr(row, fieldName):
                         val = getattr(row, fieldName)
                         if pd.isna(val) or val == "":
                             continue
 
-                        data_dict[fieldName] = str(getattr(row, fieldName.lower()))
+                        esFieldName = fieldName
+                        if fieldName == str(self._address_field_name).lower():
+                            esFieldName = es_fullname_field
+
+                        data_dict[esFieldName] = getattr(row, fieldName.lower())
 
                 if len(data_dict) == 0:
                     continue

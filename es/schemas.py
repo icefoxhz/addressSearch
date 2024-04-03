@@ -23,6 +23,12 @@ def add_schema_field(schema, field_name, field_type="keyword"):
     }
 
 
+def add_schema_field_ex(schema, field_name, field_type="keyword"):
+    schema["mappings"]["properties"][field_name] = {
+        "type": field_type,
+    }
+
+
 def copy_schema():
     return copy.deepcopy(schemaMain)
 
@@ -37,6 +43,6 @@ es_schema_fields = [es_fullname_field] + es_schema_fields_fir + es_schema_fields
 
 for field in es_schema_fields:
     add_schema_field(schemaMain, field)
-add_schema_field(schemaMain, es_schema_field_building_number, "integer")
+add_schema_field_ex(schemaMain, es_schema_field_building_number, "integer")
 
 # print("schemaMain: ", schemaMain)

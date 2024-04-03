@@ -38,7 +38,7 @@ class EsSearchService:
         self._address_max_return = 20
         self._return_multi = False
         self._es_cli = None
-        self._build_number_tolerance = 15
+        self._build_number_tolerance = 10
 
     def _after_init(self):
         self._address_table = self._configService.get_addr_cnf("data_table")
@@ -201,13 +201,16 @@ class EsSearchService:
                 )
 
             val = sections_building_number[es_schema_field_building_number]
-            if val > 0:
+            if val >= 0:
+                gte = val - self._build_number_tolerance
+                gte = gte if gte > 0 else 1
+                lte = val + self._build_number_tolerance
                 d_mid["bool"]["should"].append(
                     {
                         "range": {
                             es_schema_field_building_number: {
-                                "gte": val - self._build_number_tolerance,
-                                "lte": val + self._build_number_tolerance
+                                "gte": gte,
+                                "lte": lte
                             }
                         }
                     }
@@ -275,10 +278,7 @@ class EsSearchService:
 
         # 主体之前和主体
         search_list = list(sections_fir.values()) + list(sections_main.values())
-
-        all_search_list = list(sections_fir.values()) + list(sections_main.values()) + list(sections_mid.values())
-        all_search_field_list = es_schema_fields_fir + es_schema_fields_main + es_schema_fields_mid
-        script = self._get_score_script(all_search_field_list, all_search_list)
+        script = self._get_score_script_by_like()
 
         search_string = "*".join(search_list)
         search_param = {
@@ -394,11 +394,29 @@ class EsSearchService:
         return True, result
 
     @staticmethod
+    def _get_score_script_by_like():
+        script = {
+            "script_score": {
+                "script": {
+                    "source": """
+                                return 0.61;
+                              """,
+                    "lang": "painless"
+
+                }
+            }
+        }
+        return script
+
+    @staticmethod
     def _get_score_script(all_search_field_list, all_value_list):
         script = {
             "script_score": {
                 "script": {
                     "source": """
+                               // 能进入这里的都是找到主体的，所以给60分基础分
+                               double base_score = 0.6;
+                               
                                double found_count = 0;
 
                                int query_value_length = params.query_value.length;
@@ -415,7 +433,8 @@ class EsSearchService:
                                   }
                                 }
                                 // 找到数量的百分比作为评分
-                                return found_count / query_value_length;
+                                double score = (1.0 - base_score) * (found_count / query_value_length) + base_score;
+                                return score;
 
                               """,
                     "lang": "painless",

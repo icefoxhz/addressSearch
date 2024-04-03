@@ -20,6 +20,9 @@ class ResolveToDBService:
     @Value({
         "project.tables.batch_size": "_batch_size",
         "task.execution.pool.max_size": "_thread_pool_max_size",
+        "project.standard.x_field_name": "_x_field_name",
+        "project.standard.y_field_name": "_y_field_name",
+        "project.standard.address_field_name": "_address_field_name",
     })
     def __init__(self):
         # 自己注入自己，为了可以调用 Sync
@@ -33,6 +36,10 @@ class ResolveToDBService:
 
         self._executorTaskManager = None
 
+        self._x_field_name = None
+        self._y_field_name = None
+        self._address_field_name = None
+        self._ID_FIELD_NAME = "id"
         self._batch_size = None
         self._address_table = None
         self._parsed_address_table = None
@@ -85,19 +92,19 @@ class ResolveToDBService:
                 data_modify = []
 
                 for _, row in df.iterrows():
-                    full_name = row["fullname"]
+                    full_name = row[self._address_field_name]
                     if full_name is None or full_name == "":
                         continue
 
-                    x = row["x"]
-                    y = row["y"]
+                    x = row[self._x_field_name]
+                    y = row[self._y_field_name]
 
                     op_flag = row["op_flag"]
                     is_del = row["is_del"]
                     flag = int(op_flag) if op_flag is not None else 0
                     is_del = int(is_del) if is_del is not None else 0
 
-                    t_id = row["id"]
+                    t_id = row[self._ID_FIELD_NAME]
                     if flag == DBOperator.INSERT.value:
                         if is_del == 1:  # 删除后重新新增实际是更新
                             ids_update.append(t_id)
@@ -125,10 +132,10 @@ class ResolveToDBService:
 
                     # for result in resultList:
                     result["op_flag"] = flag
-                    result["id"] = t_id
-                    result["fullname"] = full_name
-                    result["x"] = x
-                    result["y"] = y
+                    result[self._ID_FIELD_NAME] = t_id
+                    result[self._address_field_name] = full_name
+                    result[self._x_field_name] = x
+                    result[self._y_field_name] = y
                     if flag == DBOperator.INSERT.value:
                         if is_del == 1:  # 删除后重新新增实际是更新
                             data_modify.append(result)

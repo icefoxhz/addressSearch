@@ -4,7 +4,7 @@ from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Se
 
 @Component
 class AddressMapping:
-    @Select("select id, address as fullname, x, y, op_flag, is_del from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
+    @Select("select * from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
     def get_address_data(self, table, page_size, offset):
         pass
 
@@ -20,26 +20,26 @@ class AddressMapping:
     def get_data_count(self, table):
         pass
 
-    @Delete("delete from #{table} where id=#{table_id}")
+    @Delete("delete from #{table} where id='#{table_id}'")
     def delete_data(self, table, table_id):
         pass
 
-    @Update("update #{table} set op_flag=9 where id=#{table_id}")
+    @Update("update #{table} set op_flag=9 where id='#{table_id}'")
     def set_completed(self, table, table_id):
         pass
 
     # 分页过程中更新成op_flag=9会导致分页查询有问题，因为查的是 op_flag !=9的，所以先更新成中间状态，即 op_flag=8
-    @Update("update #{table} set op_flag=8 where id=#{table_id}")
+    @Update("update #{table} set op_flag=8 where id='#{table_id}'")
     def set_waiting_completed(self, table, table_id):
         pass
 
     # 分页过程中更新成op_flag=9会导致分页查询有问题，因为查的是 op_flag !=9的，所以先更新成中间状态，即 op_flag=8
-    @Update("update #{table} set op_flag=8, is_del=0 where id=#{table_id}")
+    @Update("update #{table} set op_flag=8, is_del=0 where id='#{table_id}'")
     def set_notDelete_and_waiting_completed(self, table, table_id):
         pass
 
     # 分页过程中更新成op_flag=9会导致分页查询有问题，因为查的是 op_flag !=9的，所以先更新成中间状态，即 op_flag=8
-    @Update("update #{table} set op_flag=8, is_del=1 where id=#{table_id}")
+    @Update("update #{table} set op_flag=8, is_del=1 where id='#{table_id}'")
     def set_delete_and_waiting_completed(self, table, table_id):
         pass
 
