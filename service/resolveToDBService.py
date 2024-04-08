@@ -82,7 +82,7 @@ class ResolveToDBService:
 
     @Transactional()
     def do_run(self, df, progress_bar=None):
-        with self._lacModelManageService as model:
+        with (self._lacModelManageService as model):
             try:
                 ids_insert = []
                 ids_update = []
@@ -124,11 +124,11 @@ class ResolveToDBService:
                     # result = resultList[0]
 
                     address_parser = self._applicationContext.get_bean("addressParseService")
-                    succeed, section_fir, section_main, section_mid, section_build_number = address_parser.run(model, full_name)
+                    succeed, section_fir, section_main, section_mid, section_last, section_build_number = address_parser.run(model, full_name)
                     if not succeed:
                         continue
 
-                    result = section_fir | section_main | section_mid | section_build_number
+                    result = section_fir | section_main | section_mid | section_last | section_build_number
 
                     # for result in resultList:
                     result["op_flag"] = flag

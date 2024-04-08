@@ -117,3 +117,14 @@ class CommonTool:
                 if current_time - modified_time > time_difference:
                     os.remove(file_path)
 
+    @staticmethod
+    def remove_chinese_chars(input_string):
+        pattern = "[\u4e00-\u9fa5]"
+        result = re.sub(pattern, "", input_string)
+        return result
+
+    @staticmethod
+    def replace_chinese_to_symbol(input_string, symbol="-"):
+        pattern = "[\u4e00-\u9fa5]"
+        result = re.sub(pattern, symbol, input_string)
+        return result

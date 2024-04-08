@@ -1,3 +1,4 @@
+import copy
 import os.path
 import re
 from LAC import LAC
@@ -21,6 +22,7 @@ class AddressParseService:
         self._print_debug = False
 
         # --------------------------------
+        self._LAST_MAX_LEN = 6
         self._provinces = None
         self._cities = None
         self._regions = None
@@ -72,13 +74,13 @@ class AddressParseService:
         """
         try:
             if not self.acceptAddress(addr_string):
-                return False, None, None, None, None
+                return False, None, None, None, None, None
 
             addr_string = self.removeStartWordsIfNecessary(addr_string)
             addr_string = self.removeExtra(addr_string)
-            self.__print("移除无用信息: " + addr_string)
+            self.__print("移除无用信息: " + str(addr_string))
 
-            _, addr_string = self.cutAddress(model, addr_string)
+            _, addr_string, last_string = self.cutAddress(model, addr_string)
 
             # 分詞並處理
             cut_list = self.participleAndProcess(model, addr_string)
@@ -86,16 +88,16 @@ class AddressParseService:
             # 找主体
             is_find_body, body_idx = self.findMainBodyIndex(addr_string, cut_list)
             if not is_find_body:
-                return False, None, None, None, None
+                return False, None, None, None, None, None
 
             # 处理并生成 sections
-            address_section_first, address_section_main, address_section_mid, address_section_build_number = self.create_sections(
-                cut_list, body_idx)
+            address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number = self.create_sections(
+                cut_list, body_idx, model, last_string)
 
-            return True, address_section_first, address_section_main, address_section_mid, address_section_build_number
+            return True, address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number
         except Exception as e:
             self.__print(str(e))
-            return False, None, None, None, None
+            return False, None, None, None, None, None
 
     def acceptAddress(self, addr_string: str):
         """
@@ -155,10 +157,10 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
-        cut_succeed, addr_string = self.__cutToBuilding(model, addr_string)
+        cut_succeed, addr_string, last_string = self.__cutToBuilding(model, addr_string)
         if not cut_succeed:
-            cut_succeed, addr_string = self.__cutToCourtyardByChineseWords(addr_string)
-        return cut_succeed, addr_string
+            cut_succeed, addr_string, last_string = self.__cutToCourtyardByChineseWords(addr_string)
+        return cut_succeed, addr_string, last_string
 
     def __cutToBuilding(self, model: LAC, addr_string: str):
         """
@@ -174,10 +176,10 @@ class AddressParseService:
                                                               self._join_re_patterns_get_behind,
                                                               get_front=False)
 
-        cut_succeed, addr_string = self.__cutToBuildingByChineseWords(addr_string)
+        cut_succeed, addr_string, last_string = self.__cutToBuildingByChineseWords(addr_string)
 
         if not cut_succeed:
-            cut_succeed, addr_string = self.__cutToBuildingByJoinSymbols(addr_string)
+            cut_succeed, addr_string, last_string = self.__cutToBuildingByJoinSymbols(model, addr_string)
 
         if not cut_succeed:
             cut_succeed, addr_string = self.__cutToBuildingByJoinRePatterns(model,
@@ -185,14 +187,16 @@ class AddressParseService:
                                                                             self._join_re_patterns_get_front,
                                                                             get_front=True)
 
-        return cut_succeed, addr_string
+        return cut_succeed, addr_string, last_string
 
     def __cutToCourtyardByChineseWords(self, addr_string: str):
         """
         根据中文字符判断截取到小区院落的位置。
         :return:
         """
+        addr_string_copy = copy.deepcopy(addr_string)
         cut_succeed = False
+        find_result = None
 
         # 1. 根据中文标识符判断
         for symbol in self._courtyard_chinese_words:
@@ -214,8 +218,13 @@ class AddressParseService:
                     # ls[1] 是楼栋之后的地址, 以后解析门牌会用到
                     addr_string = addr_split[0] + str(number)
 
-        self.__print("截取到小区院落: " + addr_string)
-        return cut_succeed, addr_string
+        # 獲取last_string
+        last_string = None
+        if find_result is not None:
+            last_string = addr_string_copy.split(find_result)[1]
+
+        self.__print("截取到楼栋: " + addr_string + ", last_string: " + str(last_string))
+        return cut_succeed, addr_string, last_string
 
     def __cutToBuildingByChineseWords(self, addr_string: str):
         """
@@ -223,8 +232,9 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
+        addr_string_copy = copy.deepcopy(addr_string)
         cut_succeed = False
-
+        find_result = None
         # 1. 根据中文标识符判断
         for symbol in self._building_chinese_words:
             # if cut_succeed:
@@ -240,6 +250,7 @@ class AddressParseService:
                 match = re.search(re_str, addr_string)
                 if match:
                     result = match.group(0)
+                    find_result = result
                     # print(result)
                     # 能找到就认为可以截取到楼栋
                     number = result[:0 - len(symbol)]
@@ -247,18 +258,25 @@ class AddressParseService:
                     addr_split = addr_string.split(result)
                     # ls[1] 是楼栋之后的地址, 以后解析门牌会用到
                     addr_string = addr_split[0] + str(number)
-
-                    # cut_succeed = True
+                    cut_succeed = True
                     # break
-        self.__print("截取到楼栋: " + addr_string)
-        return cut_succeed, addr_string
 
-    def __cutToBuildingByJoinSymbols(self, addr_string: str):
+        # 獲取last_string
+        last_string = None
+        if find_result is not None:
+            last_string = addr_string_copy.split(find_result)[1]
+
+        self.__print("截取到楼栋: " + addr_string + ", last_string: " + str(last_string))
+        return cut_succeed, addr_string, last_string
+
+    def __cutToBuildingByJoinSymbols(self, model: LAC, addr_string: str):
         """
         根据符号判断截取到楼栋的位置，楼栋之后的去掉
+        :param model:
         :param addr_string:
         :return:
         """
+        last_string = None
         cut_succeed = False
         # 根据符号判断
         for num_symbol in self._join_symbols:
@@ -266,12 +284,36 @@ class AddressParseService:
 
         if self._JOIN_SYMBOL in addr_string:
             ls = addr_string.split(self._JOIN_SYMBOL)
+            while "" in ls: ls.remove("")
+            addr_string = self._JOIN_SYMBOL.join(ls)
+
             # ls[1:] 是楼栋之后的地址, 以后解析门牌会用到
-            addr_string = ls[0]
-            self.__print("截取到楼栋: " + addr_string)
+            cut_addr_string = ls[0]
+            # 獲取 last_string
+            last_string = self._JOIN_SYMBOL.join(ls[1:])
+
+            cut_list = model.run(addr_string)
+            cut_words = cut_list[0]
+            if self._JOIN_SYMBOL in cut_words:
+                idx_s = cut_words.index(self._JOIN_SYMBOL)
+                word = cut_words[idx_s - 1]
+                word_d = cut_words[idx_s + 1]
+
+                # 獲取 last_string
+                if idx_s + 2 <= len(cut_words):
+                    last_string = self._JOIN_SYMBOL.join(cut_words[idx_s + 2:])
+
+                # 獲取加載的字典表
+                model_dict = model.__getattribute__("model").custom.dictitem
+                if word in model_dict.keys():
+                    join_symbol = "号" if CommonTool.is_last_char_number(word) else ""
+                    cut_addr_string = cut_addr_string + join_symbol + CommonTool.remove_chinese_chars(word_d)
+
+            addr_string = cut_addr_string
+            self.__print("截取到楼栋: " + addr_string + ", last_string: " + str(last_string))
             cut_succeed = True
 
-        return cut_succeed, addr_string
+        return cut_succeed, addr_string, last_string
 
     @staticmethod
     def __cutToBuildingByJoinRePatterns(model: LAC, addr_string: str, re_list, get_front=True):
@@ -398,8 +440,7 @@ class AddressParseService:
             cut_words.pop(idx)
             lac_words.pop(idx)
 
-    @staticmethod
-    def preProcess(cut_list: list):
+    def preProcess(self, cut_list: list):
         cut_words = cut_list[0]
         lac_words = cut_list[1]
 
@@ -417,11 +458,15 @@ class AddressParseService:
                 if len(matches) > 0:
                     cut_words[i] = matches[0]
 
-        # 这个判断不准确，有时候准确的词也会被处理掉
-        # # 2. 判断是否还有词性是 LOC、ORG的存在. 如果没有说明无用了
-        # if "LOC" not in lac_words and "ORG" not in lac_words:
-        #     cut_words.clear()
-        #     lac_words.clear()
+        # 2. 特殊字符去掉
+        idx_list = []
+        for i in range(len(cut_words)):
+            if cut_words[i] in (self._join_symbols + [self._JOIN_SYMBOL]):
+                idx_list.append(i)
+        idx_list.reverse()
+        for i in idx_list:
+            cut_words.pop(i)
+            lac_words.pop(i)
 
     def findMainBodyIndex(self, addr_string: str, cut_list: list):
         """
@@ -459,7 +504,22 @@ class AddressParseService:
 
         return idx != -1, idx
 
-    def create_sections(self, cut_list, body_idx):
+    def __process_last_string(self, address_section_last, last_string):
+        if last_string is not None and last_string != "":
+            for num_symbol in self._join_symbols:
+                last_string = last_string.replace(num_symbol, self._JOIN_SYMBOL)
+            last_string = CommonTool.replace_chinese_to_symbol(last_string, self._JOIN_SYMBOL)
+            # last_cut_list = (model.run(last_string))[0]
+            last_cut_list = last_string.split(self._JOIN_SYMBOL)
+            while "" in last_cut_list:
+                last_cut_list.remove("")
+            if len(last_cut_list) > self._LAST_MAX_LEN:
+                last_cut_list = last_cut_list[:self._LAST_MAX_LEN]
+            for i in range(len(last_cut_list)):
+                field_name = "last_" + str(i + 1)
+                address_section_last[field_name] = last_cut_list[i]
+
+    def create_sections(self, cut_list, body_idx, model: LAC, last_string):
         cut_words = cut_list[0]
 
         # 主体前的部分
@@ -468,6 +528,8 @@ class AddressParseService:
         address_section_main = {}
         # 主体后 到 楼栋之间的部分
         address_section_mid = {}
+        # last部分
+        address_section_last = {}
 
         # 赋值
         idx = 1
@@ -491,6 +553,10 @@ class AddressParseService:
             except:
                 pass
 
+        # last_string 部分分词
+        self.__process_last_string(address_section_last, last_string)
+
         self.__print("=== sections ===")
-        self.__print(str(address_section_first) + str(address_section_main) + str(address_section_mid) + str(address_section_build_number))
-        return address_section_first, address_section_main, address_section_mid, address_section_build_number
+        self.__print(str(address_section_first) + str(address_section_main) + str(address_section_mid) +
+                     str(address_section_last) + str(address_section_build_number))
+        return address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number

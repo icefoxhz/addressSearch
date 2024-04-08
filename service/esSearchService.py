@@ -4,7 +4,7 @@ from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import
 
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
 from addressSearch.es.schemas import es_schema_fields_fir, es_schema_fields_main, es_schema_fields_mid, \
-    copy_schema, add_schema_field, es_schema_field_building_number, es_fullname_field
+    copy_schema, add_schema_field, es_schema_field_building_number, es_fullname_field, es_schema_fields_last
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.lacModelManageService import LacModelManageService
 from addressSearch.service.addressParseService import AddressParseService
@@ -102,7 +102,7 @@ class EsSearchService:
             print("\n-----------------------------------------------------\n")
         # 分词
         with self._lacModelManageService as model:
-            succeed, sections_fir, sections_main, sections_mid, sections_building_number = self._addressParseService.run(
+            succeed, sections_fir, sections_main, sections_mid, sections_last, sections_building_number = self._addressParseService.run(
                 model, address_string)
 
         if not succeed or sections_main is None or len(sections_main) == 0:
@@ -110,7 +110,7 @@ class EsSearchService:
             return False, {}
 
         # 生成查询参数
-        search_params = self.__create_address_search_params(sections_fir, sections_main, sections_mid,
+        search_params = self.__create_address_search_params(sections_fir, sections_main, sections_mid, sections_last,
                                                             sections_building_number)
 
         # 搜索
@@ -147,13 +147,16 @@ class EsSearchService:
 
         return succeed, result
 
-    def __create_address_search_params(self, sections_fir, sections_main, sections_mid, sections_building_number):
+    def __create_address_search_params(self, sections_fir, sections_main, sections_mid, sections_last,
+                                       sections_building_number):
         """
         生成搜索参数, 尝试多次搜索，每次都减少搜索条件，但是 main必须包含
         """
         d_fir = None
         d_main = None
         d_mid = None
+        d_last_all = None
+        d_last_one = None
 
         all_value_list = list(dict(sections_fir | sections_main | sections_mid).values())
         all_search_field_list = es_schema_fields_fir + es_schema_fields_main + es_schema_fields_mid
@@ -216,15 +219,48 @@ class EsSearchService:
                     }
                 )
 
+        # 最后部分
+        if sections_last is not None and len(sections_last) > 0:
+            d_last_all = {"bool": {"should": [], "minimum_should_match": "100%"}}  # 0% 是要求至少匹配一个
+            for field, val in sections_last.items():
+                d_last_all["bool"]["should"].append(
+                    {
+                        "multi_match": {
+                            "query": str(val),
+                            "fields": es_schema_fields_last
+                        }
+                    })
+
+            # 只搜 last_1 的值
+            f = es_schema_fields_last[0]
+            d_last_one = {"bool": {"should": [
+                {
+                    "multi_match": {
+                        "query": sections_last[f],
+                        "fields": es_schema_fields_last
+                    }
+                }
+            ], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
+
         # 创建搜索组合
         if d_fir is not None and d_mid is not None:
             lss = [[d_fir, d_main, d_mid], [d_main, d_mid], [d_fir, d_main], [d_main]]
+            if d_last_all is not None:
+                lss = ([[d_fir, d_main, d_mid, d_last_all], [d_main, d_mid, d_last_all], [d_fir, d_main, d_last_all], [d_main, d_last_all]] +
+                       [[d_fir, d_main, d_mid, d_last_one], [d_main, d_mid, d_last_one], [d_fir, d_main, d_last_one], [d_main, d_last_one]]
+                       + lss)
         elif d_fir is not None and d_mid is None:
             lss = [[d_fir, d_main], [d_main]]
+            if d_last_all is not None:
+                lss = [[d_fir, d_main, d_last_all], [d_main, d_last_all]] + [[d_fir, d_main, d_last_one], [d_main, d_last_one]] + lss
         elif d_fir is None and d_mid is not None:
             lss = [[d_main, d_mid], [d_main]]
+            if d_last_all is not None:
+                lss = [[d_main, d_mid, d_last_all], [d_main, d_last_all]] + [[d_main, d_mid, d_last_one], [d_main, d_last_one]] + lss
         else:
             lss = [[d_main]]
+            if d_last_all is not None:
+                lss = [[d_main, d_last_all]] + [[d_main, d_last_one]] + lss
 
         search_params = []
         for ls in lss:
