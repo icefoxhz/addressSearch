@@ -436,6 +436,9 @@ class EsSearchService:
 
     @staticmethod
     def _get_score_script_by_like():
+        """
+        模糊查询能匹配到的，直接给 61分
+        """
         script = {
             "script_score": {
                 "script": {
@@ -459,7 +462,6 @@ class EsSearchService:
             --------------
             全部分词都能匹配直接就是100分
             如果超过100分， 100 * (分词匹配到的个数 / 分词总数)
-            模糊查询能匹配到的，直接给 61分
         """
         if sections_fir is None:
             sections_fir = {}
@@ -516,7 +518,6 @@ class EsSearchService:
                             all_found_count += found_count;
                             all_value_count += query_value_length;
                             
-                    
                             // last 算分，每找到一个得5分
                             found_count = 0.0;
                             query_value_length = params.query_value_last.length;
