@@ -158,11 +158,12 @@ class EsSearchService:
         d_last_all = None
         d_last_one = None
 
-        all_value_list = list(dict(sections_fir | sections_main | sections_mid).values())
-        all_search_field_list = es_schema_fields_fir + es_schema_fields_main + es_schema_fields_mid
+        # all_value_list = list(dict(sections_fir | sections_main | sections_mid | sections_last).values())
+        # all_search_field_list = es_schema_fields_fir + es_schema_fields_main + es_schema_fields_mid + es_schema_fields_last
+        # # 评分函数
+        # script = self._get_score_script(all_search_field_list, all_value_list)
 
-        # 评分函数
-        script = self._get_score_script(all_search_field_list, all_value_list)
+        script = self._get_score_script(sections_fir, sections_mid, sections_last)
 
         # 组织主体前部分的搜索
         if sections_fir is not None and len(sections_fir) > 0:
@@ -246,17 +247,21 @@ class EsSearchService:
         if d_fir is not None and d_mid is not None:
             lss = [[d_fir, d_main, d_mid], [d_main, d_mid], [d_fir, d_main], [d_main]]
             if d_last_all is not None:
-                lss = ([[d_fir, d_main, d_mid, d_last_all], [d_main, d_mid, d_last_all], [d_fir, d_main, d_last_all], [d_main, d_last_all]] +
-                       [[d_fir, d_main, d_mid, d_last_one], [d_main, d_mid, d_last_one], [d_fir, d_main, d_last_one], [d_main, d_last_one]]
+                lss = ([[d_fir, d_main, d_mid, d_last_all], [d_main, d_mid, d_last_all], [d_fir, d_main, d_last_all],
+                        [d_main, d_last_all]] +
+                       [[d_fir, d_main, d_mid, d_last_one], [d_main, d_mid, d_last_one], [d_fir, d_main, d_last_one],
+                        [d_main, d_last_one]]
                        + lss)
         elif d_fir is not None and d_mid is None:
             lss = [[d_fir, d_main], [d_main]]
             if d_last_all is not None:
-                lss = [[d_fir, d_main, d_last_all], [d_main, d_last_all]] + [[d_fir, d_main, d_last_one], [d_main, d_last_one]] + lss
+                lss = [[d_fir, d_main, d_last_all], [d_main, d_last_all]] + [[d_fir, d_main, d_last_one],
+                                                                             [d_main, d_last_one]] + lss
         elif d_fir is None and d_mid is not None:
             lss = [[d_main, d_mid], [d_main]]
             if d_last_all is not None:
-                lss = [[d_main, d_mid, d_last_all], [d_main, d_last_all]] + [[d_main, d_mid, d_last_one], [d_main, d_last_one]] + lss
+                lss = [[d_main, d_mid, d_last_all], [d_main, d_last_all]] + [[d_main, d_mid, d_last_one],
+                                                                             [d_main, d_last_one]] + lss
         else:
             lss = [[d_main]]
             if d_last_all is not None:
@@ -435,7 +440,7 @@ class EsSearchService:
             "script_score": {
                 "script": {
                     "source": """
-                                return 0.61;
+                                return 61;
                               """,
                     "lang": "painless"
 
@@ -445,38 +450,114 @@ class EsSearchService:
         return script
 
     @staticmethod
-    def _get_score_script(all_search_field_list, all_value_list):
+    def _get_score_script(sections_fir, sections_mid, sections_last):
+        """
+        评分规则:
+            找到主体 50 分
+            找到楼栋 20分
+            找到其他部分每个均 5分
+            --------------
+            全部分词都能匹配直接就是100分
+            如果超过100分， 100 * (分词匹配到的个数 / 分词总数)
+            模糊查询能匹配到的，直接给 61分
+        """
+        if sections_fir is None:
+            sections_fir = {}
+        if sections_mid is None:
+            sections_mid = {}
+        if sections_last is None:
+            sections_last = {}
+
         script = {
             "script_score": {
                 "script": {
                     "source": """
-                               // 能进入这里的都是找到主体的，所以给60分基础分
-                               double base_score = 0.6;
-                               
-                               double found_count = 0;
-
-                               int query_value_length = params.query_value.length;
-                               int query_field_length = params.query_field.length;
-
-                                for (int i = 0; i < query_field_length; i++) {
-                                  if (doc.containsKey(params.query_field[i]) && doc[params.query_field[i]].size() > 0) {
+                            // 能进入这里的都是找到主体的，给个基础分
+                            double base_score = 50;
+                            double all_found_count = 0.0;
+                            double all_value_count = 0.0;
+                           
+                            // fir 算分， 每找到一个得5分
+                            double found_count = 0.0;
+                            int query_value_length = params.query_value_fir.length;
+                            int query_field_length = params.query_fields_fir.length;
+                            for (int i = 0; i < query_field_length; i++) {
+                                if (doc.containsKey(params.query_fields_fir[i]) && doc[params.query_fields_fir[i]].size() > 0) {
                                     for (int j = 0; j < query_value_length; j++) {
-                                      if (doc[params.query_field[i]].value == params.query_value[j]) {
-                                        found_count += 1; // 匹配度加1
-                                        break;
-                                      }
+                                        if (doc[params.query_fields_fir[i]].value == params.query_value_fir[j]) {
+                                            found_count += 1;
+                                            break;
+                                        }
                                     }
-                                  }
                                 }
-                                // 找到数量的百分比作为评分
-                                double score = (1.0 - base_score) * (found_count / query_value_length) + base_score;
+                            }
+                            double fir_score = found_count * 5;
+                            all_found_count += found_count;
+                            all_value_count += query_value_length;
+                            
+                            // mid 算分, 能找到楼栋直接给20分
+                            double mid_score = 0.0;
+                            found_count = 0.0;
+                            query_value_length = params.query_value_mid.length;
+                            query_field_length = params.query_fields_mid.length;
+                            for (int i = 0; i < query_field_length; i++) {
+                                if (doc.containsKey(params.query_fields_mid[i]) && doc[params.query_fields_mid[i]].size() > 0) {
+                                    for (int j = 0; j < query_value_length; j++) {
+                                        if (doc[params.query_fields_mid[i]].value == params.query_value_mid[j]) {
+                                            found_count += 1;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if (found_count > 0){
+                                mid_score =  20;
+                            }
+                            all_found_count += found_count;
+                            all_value_count += query_value_length;
+                            
+                    
+                            // last 算分，每找到一个得5分
+                            found_count = 0.0;
+                            query_value_length = params.query_value_last.length;
+                            query_field_length = params.query_fields_last.length;
+                            for (int i = 0; i < query_field_length; i++) {
+                                if (doc.containsKey(params.query_fields_last[i]) && doc[params.query_fields_last[i]].size() > 0) {
+                                    for (int j = 0; j < query_value_length; j++) {
+                                        if (doc[params.query_fields_last[i]].value == params.query_value_last[j]) {
+                                            found_count += 1;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            double last_score = found_count * 5;
+                            all_found_count += found_count;
+                            all_value_count += query_value_length;
+                            
+                            // 找到数量的百分比作为评分
+                            double score = 0.0;
+                            if (all_value_count == all_found_count){
+                                score = 100;
                                 return score;
+                            }
+                            
+                            score = base_score + fir_score + mid_score + last_score;
+                            if (score >= 100){
+                                score = 100 * (all_value_count / all_found_count);
+                            }
+                            
+                            return score;
 
-                              """,
+                                  """,
                     "lang": "painless",
                     "params": {
-                        "query_field": all_search_field_list,
-                        "query_value": all_value_list
+                        "query_fields_fir": es_schema_fields_fir,
+                        "query_fields_mid": es_schema_fields_mid,
+                        "query_fields_last": es_schema_fields_last,
+                        "query_value_fir": list(sections_fir.values()),
+                        "query_value_mid": list(sections_mid.values()),
+                        "query_value_last": list(sections_last.values())
                     }
                 }
             }

@@ -300,8 +300,8 @@ class AddressParseService:
                 word_d = cut_words[idx_s + 1]
 
                 # 獲取 last_string
-                if idx_s + 2 <= len(cut_words):
-                    last_string = self._JOIN_SYMBOL.join(cut_words[idx_s + 2:])
+                if idx_s + 1 <= len(cut_words):
+                    last_string = self._JOIN_SYMBOL.join(cut_words[idx_s + 1:])
 
                 # 獲取加載的字典表
                 model_dict = model.__getattribute__("model").custom.dictitem
@@ -367,27 +367,41 @@ class AddressParseService:
 
     def removeBigRegions(self, cut_list: list):
         """
-        去掉分词中的 省、市、区、街道
+        去掉分词是省、市、区、街道的， 和 去掉词中的省、市、区、街道
         :param cut_list:
         :return:
         """
         cut_words = cut_list[0]
         lac_words = cut_list[1]
 
+        # 去掉分词是省、市、区、街道的
         remove_idx_ls = []
         for i in range(len(cut_words)):
-            if cut_words[i] in self._provinces:
+            j_word = cut_words[i]
+            if j_word in self._provinces:
                 remove_idx_ls.insert(0, i)
-            elif cut_words[i] in self._cities:
+            elif j_word in self._cities:
                 remove_idx_ls.insert(0, i)
-            elif cut_words[i] in self._regions:
+            elif j_word in self._regions:
                 remove_idx_ls.insert(0, i)
-            elif cut_words[i] in self._streets:
+            elif j_word in self._streets:
                 remove_idx_ls.insert(0, i)
-
         for idx in remove_idx_ls:
             cut_words.pop(idx)
             lac_words.pop(idx)
+
+        # 去掉词中的省、市、区、街道
+        for i in range(len(cut_words)):
+            j_word = cut_words[i]
+            for w in self._provinces:
+                j_word = j_word.replace(w, "")
+            for w in self._cities:
+                j_word = j_word.replace(w, "")
+            for w in self._regions:
+                j_word = j_word.replace(w, "")
+            for w in self._streets:
+                j_word = j_word.replace(w, "")
+            cut_words[i] = j_word
 
     @staticmethod
     def removeSingleChinese(cut_list):
@@ -426,7 +440,8 @@ class AddressParseService:
         lac_words = cut_list[1]
 
         # 根據詞性判斷,  去掉助詞、名詞、動詞
-        useless_lac_list = ["u", "n", "v"]
+        # useless_lac_list = ["u", "n", "v"]
+        useless_lac_list = ["u"]
 
         remove_idx_ls = []
         for i in range(len(lac_words)):
