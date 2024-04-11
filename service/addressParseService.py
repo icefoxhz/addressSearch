@@ -139,6 +139,7 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
+        # 1.
         for extra_ls in self._extra_symbols:
             start_symbol = extra_ls[0]
             end_symbol = extra_ls[1]
@@ -152,6 +153,7 @@ class AddressParseService:
             elif start_symbol not in addr_string and end_symbol in addr_string:
                 addr_string = addr_string.replace(end_symbol, "")
 
+        # 2.
         for symbol in self._common_symbol:
             addr_string = addr_string.replace(symbol, "")
 

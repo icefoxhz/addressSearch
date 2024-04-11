@@ -420,15 +420,15 @@ class EsSearchService:
         :return:
         """
         points = points_string.split(",")
-        x = points[0]
-        y = points[1]
+        x = str(points[0]).strip()
+        y = str(points[1]).strip()
 
         search_param = self._make_point_search_param(x=x, y=y)
         if self._print_debug:
             print("search_param = ", search_param)
 
         search_result = self._es_cli.query(search_param)
-        _, result = self._get_query_result(search_result)
+        result = self._get_query_result(search_result)
 
         return result
 
