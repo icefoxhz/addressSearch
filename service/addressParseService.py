@@ -29,6 +29,10 @@ class AddressParseService:
         self._streets = None
 
         # --------------------------------
+        # 比如，龙湖·星悦荟,  把这些符号去掉
+        self._common_symbol = ["·"]
+
+        # --------------------------------
         self._building_chinese_words = ["幢", "栋", "区", "号楼", "楼",
                                         "号厂区", "号东厂区", "号南厂区", "号西厂区", "号北厂区",
                                         ]
@@ -147,6 +151,9 @@ class AddressParseService:
                 addr_string = addr_string.replace(start_symbol, "")
             elif start_symbol not in addr_string and end_symbol in addr_string:
                 addr_string = addr_string.replace(end_symbol, "")
+
+        for symbol in self._common_symbol:
+            addr_string = addr_string.replace(symbol, "")
 
         return addr_string
 
