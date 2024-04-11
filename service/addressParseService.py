@@ -35,25 +35,25 @@ class AddressParseService:
         self._courtyard_chinese_words = ["期"]
 
         # --------------------------------
-        self._JOIN_SYMBOL = "-"
-        self._join_symbols = ["－", "—", "～", "~", "#", "/", "、", ",", "，", " ",
-                              "内东", "内南", "内西", "内北",
-                              "东边", "南边", "西边", "北边",
-                              "东面", "南面", "西面", "北面",
-                              "东侧", "南侧", "西侧", "北侧",
-                              ]
+        self._CONJUNCTION = "-"
+        self._conjunction_symbols = ["－", "—", "～", "~", "#", "/", "、", ",", "，", " ",
+                                     "内东", "内南", "内西", "内北",
+                                     "东边", "南边", "西边", "北边",
+                                     "东面", "南面", "西面", "北面",
+                                     "东侧", "南侧", "西侧", "北侧",
+                                     ]
 
-        self._join_re_patterns_get_front = [r'向(.*?)米',
-                                            r'东(.*?)米',
-                                            r'西(.*?)米',
-                                            r'南(.*?)米',
-                                            r'北(.*?)米',
-                                            ]
+        self._conjunction_re_patterns_get_front = [r'向(.*?)米',
+                                                   r'东(.*?)米',
+                                                   r'西(.*?)米',
+                                                   r'南(.*?)米',
+                                                   r'北(.*?)米',
+                                                   ]
 
-        self._join_re_patterns_get_behind = [r'路与(.*?)路交叉口',
-                                             r'路与(.*?)路交界处',
-                                             r'路与(.*?)路交汇处',
-                                             ]
+        self._conjunction_re_patterns_get_behind = [r'路与(.*?)路交叉口',
+                                                    r'路与(.*?)路交界处',
+                                                    r'路与(.*?)路交汇处',
+                                                    ]
 
         # --------------------------------
         self._extra_symbols = [["(", ")"],
@@ -173,7 +173,7 @@ class AddressParseService:
         # 交叉口这种先处理一下, 这步总是要处理
         _, addr_string = self.__cutToBuildingByJoinRePatterns(model,
                                                               addr_string,
-                                                              self._join_re_patterns_get_behind,
+                                                              self._conjunction_re_patterns_get_behind,
                                                               get_front=False)
 
         cut_succeed, addr_string, last_string = self.__cutToBuildingByChineseWords(addr_string)
@@ -184,10 +184,38 @@ class AddressParseService:
         if not cut_succeed:
             cut_succeed, addr_string = self.__cutToBuildingByJoinRePatterns(model,
                                                                             addr_string,
-                                                                            self._join_re_patterns_get_front,
+                                                                            self._conjunction_re_patterns_get_front,
                                                                             get_front=True)
 
         return cut_succeed, addr_string, last_string
+
+    def __getCourtyardNumberByChineseWords(self, addr_string: str):
+        """
+        获取小区院落的数字
+        :return:
+        """
+        number = -1
+        # 1. 根据中文标识符判断
+        for symbol in self._courtyard_chinese_words:
+            re_strs = [
+                r'第+\d+[A-Za-z]+区|\d+区|[A-Za-z]+区|[A-Za-z]+\d+区'.replace("区", symbol),  # 阿拉伯数字和字母的组合
+                r'\d+[A-Za-z]+区|\d+区|[A-Za-z]+区|[A-Za-z]+\d+区'.replace("区", symbol),  # 阿拉伯数字和字母的组合
+                r'(第+[一二三四五六七八九十〇壹贰叁肆伍陆柒捌玖拾百佰千仟万亿东南西北]+' + symbol + ')',  # 中文数字
+                r'([一二三四五六七八九十〇壹贰叁肆伍陆柒捌玖拾百佰千仟万亿东南西北]+' + symbol + ')'  # 中文数字
+            ]
+            for re_str in re_strs:
+                match = re.search(re_str, addr_string)
+                if match:
+                    result = match.group(0)
+                    # 必须开头才行
+                    if not addr_string.startswith(result):
+                        continue
+                    # print(result)
+                    # 能找到就认为可以截取到楼栋
+                    number = result[:0 - len(symbol)]
+                    number = CommonTool.chinese_to_arabic(number)
+
+        return number
 
     def __cutToCourtyardByChineseWords(self, addr_string: str):
         """
@@ -210,6 +238,7 @@ class AddressParseService:
                 match = re.search(re_str, addr_string)
                 if match:
                     result = match.group(0)
+                    find_result = result
                     # print(result)
                     # 能找到就认为可以截取到楼栋
                     number = result[:0 - len(symbol)]
@@ -217,6 +246,7 @@ class AddressParseService:
                     addr_split = addr_string.split(result)
                     # ls[1] 是楼栋之后的地址, 以后解析门牌会用到
                     addr_string = addr_split[0] + str(number)
+                    cut_succeed = True
 
         # 獲取last_string
         last_string = None
@@ -279,29 +309,29 @@ class AddressParseService:
         last_string = None
         cut_succeed = False
         # 根据符号判断
-        for num_symbol in self._join_symbols:
-            addr_string = addr_string.replace(num_symbol, self._JOIN_SYMBOL)
+        for num_symbol in self._conjunction_symbols:
+            addr_string = addr_string.replace(num_symbol, self._CONJUNCTION)
 
-        if self._JOIN_SYMBOL in addr_string:
-            ls = addr_string.split(self._JOIN_SYMBOL)
+        if self._CONJUNCTION in addr_string:
+            ls = addr_string.split(self._CONJUNCTION)
             while "" in ls: ls.remove("")
-            addr_string = self._JOIN_SYMBOL.join(ls)
+            addr_string = self._CONJUNCTION.join(ls)
 
             # ls[1:] 是楼栋之后的地址, 以后解析门牌会用到
             cut_addr_string = ls[0]
             # 獲取 last_string
-            last_string = self._JOIN_SYMBOL.join(ls[1:])
+            last_string = self._CONJUNCTION.join(ls[1:])
 
             cut_list = model.run(addr_string)
             cut_words = cut_list[0]
-            if self._JOIN_SYMBOL in cut_words:
-                idx_s = cut_words.index(self._JOIN_SYMBOL)
+            if self._CONJUNCTION in cut_words:
+                idx_s = cut_words.index(self._CONJUNCTION)
                 word = cut_words[idx_s - 1]
                 word_d = cut_words[idx_s + 1]
 
                 # 獲取 last_string
                 if idx_s + 1 <= len(cut_words):
-                    last_string = self._JOIN_SYMBOL.join(cut_words[idx_s + 1:])
+                    last_string = self._CONJUNCTION.join(cut_words[idx_s + 1:])
 
                 # 獲取加載的字典表
                 model_dict = model.__getattribute__("model").custom.dictitem
@@ -476,12 +506,19 @@ class AddressParseService:
         # 2. 特殊字符去掉
         idx_list = []
         for i in range(len(cut_words)):
-            if cut_words[i] in (self._join_symbols + [self._JOIN_SYMBOL]):
+            if cut_words[i] in (self._conjunction_symbols + [self._CONJUNCTION]):
                 idx_list.append(i)
         idx_list.reverse()
         for i in idx_list:
             cut_words.pop(i)
             lac_words.pop(i)
+
+        # 3. 获取分词中的courtyard的数字
+        for i in range(len(cut_words)):
+            word = cut_words[i]
+            number = self.__getCourtyardNumberByChineseWords(word)
+            if number > 0:
+                cut_words[i] = str(number)
 
     def findMainBodyIndex(self, addr_string: str, cut_list: list):
         """
@@ -521,11 +558,11 @@ class AddressParseService:
 
     def __process_last_string(self, address_section_last, last_string):
         if last_string is not None and last_string != "":
-            for num_symbol in self._join_symbols:
-                last_string = last_string.replace(num_symbol, self._JOIN_SYMBOL)
-            last_string = CommonTool.replace_chinese_to_symbol(last_string, self._JOIN_SYMBOL)
+            for num_symbol in self._conjunction_symbols:
+                last_string = last_string.replace(num_symbol, self._CONJUNCTION)
+            last_string = CommonTool.replace_chinese_to_symbol(last_string, self._CONJUNCTION)
             # last_cut_list = (model.run(last_string))[0]
-            last_cut_list = last_string.split(self._JOIN_SYMBOL)
+            last_cut_list = last_string.split(self._CONJUNCTION)
             while "" in last_cut_list:
                 last_cut_list.remove("")
             if len(last_cut_list) > self._LAST_MAX_LEN:

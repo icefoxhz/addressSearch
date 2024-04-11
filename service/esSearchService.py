@@ -22,7 +22,7 @@ class EsSearchService:
     })
     def __init__(self):
         self._print_debug = False
-        self._blur_search = False
+        self._blur_search = 0
         self._address_table = None
         self._parsed_address_table = None
         self._ip = None
@@ -53,7 +53,7 @@ class EsSearchService:
     def __conn_es(self):
         # 添加额外字段.  深拷贝一份，不能修改老的
         schemaMainNew = copy_schema()
-        add_schema_field(schemaMainNew, "ex_val")
+        # add_schema_field(schemaMainNew, "ex_val")
 
         self._es_cli = ElasticsearchManger(self._db_name_address, schemaMainNew, self._ip, self._port)
         with self._es_cli as es_conn:
@@ -117,9 +117,8 @@ class EsSearchService:
         succeed, result = self.__address_search(search_params)
 
         # 还是未找到的話，尝试模糊查询
-        if not succeed and self._blur_search:
+        if not succeed and self._blur_search != 0:
             succeed, result = self.search_by_like(sections_fir, sections_main, sections_mid)
-
         return succeed, result
 
     def _run_address_search_by_thesaurus(self, address_string):
@@ -136,7 +135,6 @@ class EsSearchService:
                         succeed, result = self._run_address_search_not_by_thesaurus(address_string)
                         if succeed:
                             return succeed, result
-
         return False, {}
 
     def run_address_search(self, address_string):
@@ -144,7 +142,6 @@ class EsSearchService:
         # 还是未找到的話，使用同义词
         if not succeed:
             succeed, result = self._run_address_search_by_thesaurus(address_string)
-
         return succeed, result
 
     def __create_address_search_params(self, sections_fir, sections_main, sections_mid, sections_last,
@@ -285,7 +282,6 @@ class EsSearchService:
                 "size": int(self._address_max_return)
             }
             search_params.append(search_param)
-
         return search_params
 
     def __address_search(self, search_params):
@@ -297,11 +293,11 @@ class EsSearchService:
 
         for search_param in search_params:
             if self._print_debug:
+                # print("======", str(search_param))
                 print("search_param :" + str(search_param["query"]["function_score"]["query"]))
             succeed, search_result = self._do_address_search(search_param)
             if succeed:
                 break
-
         return succeed, search_result
 
     def _do_address_search(self, search_param):
@@ -312,45 +308,74 @@ class EsSearchService:
             log.error(str(e))
             return False, {}
 
+    def _get_query_dict(self, search_list1, search_list2, search_list3):
+        search_query = {}
+        if self._blur_search == 0:
+            return search_query
+
+        # 匹配到3段得 81分
+        search_query["81"] = search_list1
+        if self._blur_search == 1:
+            return search_query
+
+        if len(search_list1) != len(search_list2):
+            # 匹配到2段得 61分
+            search_query["61"] = search_list2
+
+        if self._blur_search == 2:
+            return search_query
+
+        if len(search_list2) != len(search_list3):
+            # 匹配到1段得 51分
+            search_query["51"] = search_list3
+
+        return search_query
+
     def search_by_like(self, sections_fir, sections_main, sections_mid):
         """
         模糊匹配
         """
 
-        # 主体之前和主体
-        search_list = list(sections_fir.values()) + list(sections_main.values())
-        script = self._get_score_script_by_like()
+        search_list1 = list(sections_fir.values()) + list(sections_main.values()) + list(sections_mid.values())
+        search_list2 = list(sections_fir.values()) + list(sections_main.values())
+        search_list3 = list(sections_main.values())
+        search_lists = self._get_query_dict(search_list1, search_list2, search_list3)
 
-        search_string = "*".join(search_list)
-        search_param = {
-            "query": {
-                "function_score": {
-                    "score_mode": "sum",
-                    "boost_mode": "replace",
-                    "functions": [script],
-                    "query": {
-                        "bool": {
-                            "must": [{
-                                "query_string": {
-                                    "default_field": es_fullname_field,
-                                    "query": "*" + search_string + "*"
-                                }
-                            }]
+        result = {}
+        for score, search_list in search_lists.items():
+            script = self._get_score_script_by_like(score)
+
+            search_string = "*".join(search_list)
+            search_param = {
+                "query": {
+                    "function_score": {
+                        "score_mode": "sum",
+                        "boost_mode": "replace",
+                        "functions": [script],
+                        "query": {
+                            "bool": {
+                                "must": [{
+                                    "query_string": {
+                                        "default_field": es_fullname_field,
+                                        "query": "*" + search_string + "*"
+                                    }
+                                }]
+                            }
                         }
                     }
-                }
-            },
-            "size": int(self._address_max_return)
-        }
+                },
+                "size": int(self._address_max_return)
+            }
 
-        if self._print_debug:
-            print(">>>>>>>>>> 模糊查詢 <<<<<<<<<<")
-            print("search_param :" + str(search_param["query"]["function_score"]["query"]))
+            if self._print_debug:
+                print(">>>>>>>>>> 模糊查詢 <<<<<<<<<<")
+                print("search_param :" + str(search_param["query"]["function_score"]["query"]))
 
-        search_result = self._es_cli.query(search_param)
-        result = self._get_query_result(search_result)
-
-        return result
+            search_result = self._es_cli.query(search_param)
+            succeed, result = self._get_query_result(search_result)
+            if succeed:
+                return True, result
+        return False, result
 
     def _make_point_search_param(self, x, y):
         """
@@ -403,7 +428,7 @@ class EsSearchService:
             print("search_param = ", search_param)
 
         search_result = self._es_cli.query(search_param)
-        result = self._get_query_result(search_result)
+        _, result = self._get_query_result(search_result)
 
         return result
 
@@ -435,17 +460,20 @@ class EsSearchService:
         return True, result
 
     @staticmethod
-    def _get_score_script_by_like():
+    def _get_score_script_by_like(score):
         """
-        模糊查询能匹配到的，直接给 61分
+        模糊查询能匹配到的
         """
         script = {
             "script_score": {
                 "script": {
                     "source": """
-                                return 61;
+                                return params.score;
                               """,
-                    "lang": "painless"
+                    "lang": "painless",
+                    "params": {
+                        "score": int(score),
+                    }
 
                 }
             }
