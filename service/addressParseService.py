@@ -1,6 +1,6 @@
 import copy
-import os.path
 import re
+
 from LAC import LAC
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value
@@ -33,7 +33,7 @@ class AddressParseService:
         self._common_symbol = ["·"]
 
         # --------------------------------
-        self._building_chinese_words = ["幢", "栋", "区", "号楼", "楼",
+        self._building_chinese_words = ["幢", "栋", "区", "号楼", "楼", "座",
                                         "号厂区", "号东厂区", "号南厂区", "号西厂区", "号北厂区",
                                         ]
         self._courtyard_chinese_words = ["期"]
@@ -565,12 +565,12 @@ class AddressParseService:
 
         return idx != -1, idx
 
-    def __process_last_string(self, address_section_last, last_string):
+    def __process_last_string(self,  model: LAC, address_section_last, last_string):
+        last_string_copy = copy.deepcopy(last_string)
         if last_string is not None and last_string != "":
             for num_symbol in self._conjunction_symbols:
                 last_string = last_string.replace(num_symbol, self._CONJUNCTION)
             last_string = CommonTool.replace_chinese_to_symbol(last_string, self._CONJUNCTION)
-            # last_cut_list = (model.run(last_string))[0]
             last_cut_list = last_string.split(self._CONJUNCTION)
             while "" in last_cut_list:
                 last_cut_list.remove("")
@@ -579,6 +579,21 @@ class AddressParseService:
             for i in range(len(last_cut_list)):
                 field_name = "last_" + str(i + 1)
                 address_section_last[field_name] = last_cut_list[i]
+
+            # 后面部分可能有中文， 这个中文如果在字典表中，且还有位置放，则保留下来
+            if self._LAST_MAX_LEN > len(last_cut_list):
+                # 獲取加載的字典表
+                model_dict = model.__getattribute__("model").custom.dictitem
+
+                idx = len(last_cut_list)
+                cut_list = model.run(last_string_copy)[0]
+                for word in cut_list:
+                    if word in model_dict:
+                        field_name = "last_" + str(idx + 1)
+                        address_section_last[field_name] = word
+                        idx += 1
+                    if idx >= self._LAST_MAX_LEN:
+                        break
 
     def create_sections(self, cut_list, body_idx, model: LAC, last_string):
         cut_words = cut_list[0]
@@ -615,7 +630,7 @@ class AddressParseService:
                 pass
 
         # last_string 部分分词
-        self.__process_last_string(address_section_last, last_string)
+        self.__process_last_string(model, address_section_last, last_string)
 
         self.__print("=== sections ===")
         self.__print(str(address_section_first) + str(address_section_main) + str(address_section_mid) +

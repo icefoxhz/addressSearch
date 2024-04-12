@@ -83,6 +83,35 @@ async def searchByAddress(request: Request):
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_address_search(address_string)
+    if succeed:
+        del_keys = []
+        for k in result.keys():
+            if str(k).startswith("fir_") or str(k).startswith("f_main") or str(k).startswith("mid_") or str(
+                    k).startswith("last_") or str(k).startswith("building_number"):
+                del_keys.append(k)
+        for k in del_keys:
+            result.pop(k)
+
+    return _make_rest_result(key, result, "未找到" if not succeed else None)
+
+
+@rest_app.post("/searchByAddressDev")
+async def searchByAddressDev(request: Request):
+    """
+    参数格式
+    {
+        "1": "无锡市惠山区洛社镇五秦村强巷52号"
+    }
+
+    :param request:
+    :return:
+    """
+    jsonRequest = await request.json()
+    key = list(jsonRequest.keys())[0]
+    address_string = list(jsonRequest.values())[0]
+
+    esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+    succeed, result = esSearchService.run_address_search(address_string)
     return _make_rest_result(key, result, "未找到" if not succeed else None)
 
 
@@ -109,6 +138,33 @@ async def searchByAddressEx(request: Request):
 
 @rest_app.post("/searchByPoint")
 async def searchByPoint(request: Request):
+    """
+    参数格式
+    {
+        "1": "119.87630533652268,31.31180405900834"
+    }
+    :param request:
+    :return:
+    """
+    jsonRequest = await request.json()
+    key = list(jsonRequest.keys())[0]
+    points_string = list(jsonRequest.values())[0]
+
+    esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+    succeed, result = esSearchService.run_search_by_point(points_string)
+    del_keys = []
+    for k in result.keys():
+        if str(k).startswith("fir_") or str(k).startswith("f_main") or str(k).startswith("mid_") or str(
+                k).startswith("last_") or str(k).startswith("building_number") or str(k).startswith("score"):
+            del_keys.append(k)
+    for k in del_keys:
+        result.pop(k)
+
+    return _make_rest_result(key, result, "未找到" if not succeed else None)
+
+
+@rest_app.post("/searchByPointDev")
+async def searchByPointDev(request: Request):
     """
     参数格式
     {

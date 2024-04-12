@@ -4,11 +4,11 @@ from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import
 
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
 from addressSearch.es.schemas import es_schema_fields_fir, es_schema_fields_main, es_schema_fields_mid, \
-    copy_schema, add_schema_field, es_schema_field_building_number, es_fullname_field, es_schema_fields_last
+    es_schema_field_building_number, es_fullname_field, es_schema_fields_last, schemaMain
 from addressSearch.mapping.addressMapping import AddressMapping
-from addressSearch.service.lacModelManageService import LacModelManageService
 from addressSearch.service.addressParseService import AddressParseService
 from addressSearch.service.configService import ConfigService
+from addressSearch.service.lacModelManageService import LacModelManageService
 from addressSearch.service.thesaurusService import ThesaurusService
 
 
@@ -38,7 +38,7 @@ class EsSearchService:
         self._address_max_return = 20
         self._return_multi = False
         self._es_cli = None
-        self._build_number_tolerance = 10
+        self._build_number_tolerance = 10  # 前后n栋的来去
 
     def _after_init(self):
         self._address_table = self._configService.get_addr_cnf("data_table")
@@ -52,10 +52,11 @@ class EsSearchService:
 
     def __conn_es(self):
         # 添加额外字段.  深拷贝一份，不能修改老的
-        schemaMainNew = copy_schema()
+        # schemaMainNew = copy_schema()
         # add_schema_field(schemaMainNew, "ex_val")
+        # self._es_cli = ElasticsearchManger(self._db_name_address, schemaMainNew, self._ip, self._port)
 
-        self._es_cli = ElasticsearchManger(self._db_name_address, schemaMainNew, self._ip, self._port)
+        self._es_cli = ElasticsearchManger(self._db_name_address, schemaMain, self._ip, self._port)
         with self._es_cli as es_conn:
             if es_conn is None:
                 return
