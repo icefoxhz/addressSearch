@@ -64,6 +64,16 @@ async def handle_os_error(request, exc):
     return JSONResponse(status_code=500, content={"message": "Internal server error"})
 
 
+async def generate_user_result(result):
+    del_keys = []
+    for k in result.keys():
+        if str(k).startswith("fir_") or str(k).startswith("f_main") or str(k).startswith("mid_") or str(
+                k).startswith("last_") or str(k).startswith("building_number"):
+            del_keys.append(k)
+    for k in del_keys:
+        result.pop(k)
+
+
 # ================================================================================
 
 @rest_app.post("/searchByAddress")
@@ -84,13 +94,7 @@ async def searchByAddress(request: Request):
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_address_search(address_string)
     if succeed:
-        del_keys = []
-        for k in result.keys():
-            if str(k).startswith("fir_") or str(k).startswith("f_main") or str(k).startswith("mid_") or str(
-                    k).startswith("last_") or str(k).startswith("building_number"):
-                del_keys.append(k)
-        for k in del_keys:
-            result.pop(k)
+        await generate_user_result(result)
 
     return _make_rest_result(key, result, "未找到" if not succeed else None)
 
@@ -152,13 +156,8 @@ async def searchByPoint(request: Request):
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_search_by_point(points_string)
-    del_keys = []
-    for k in result.keys():
-        if str(k).startswith("fir_") or str(k).startswith("f_main") or str(k).startswith("mid_") or str(
-                k).startswith("last_") or str(k).startswith("building_number") or str(k).startswith("score"):
-            del_keys.append(k)
-    for k in del_keys:
-        result.pop(k)
+    if succeed:
+        await generate_user_result(result)
 
     return _make_rest_result(key, result, "未找到" if not succeed else None)
 

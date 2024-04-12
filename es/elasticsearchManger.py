@@ -93,6 +93,10 @@ class ElasticsearchManger:
         self.__local_obj.last_do_time = time.time()
 
     def query(self, jsonQuery):
-        conn = self._get_conn()
-        self.__local_obj.last_do_time = time.time()
-        return conn.search(body=jsonQuery, index=self.__indexName)
+        try:
+            conn = self._get_conn()
+            self.__local_obj.last_do_time = time.time()
+            return conn.search(body=jsonQuery, index=self.__indexName)
+        except Exception as e:
+            log.error(str(e))
+            return None

@@ -437,6 +437,9 @@ class EsSearchService:
         """
         重新组织es返回的结果
         """
+        if search_result is None:
+            return False, {}
+
         search_count = int(search_result.get("hits").get("total").get("value"))
         if self._print_debug:
             print("找到数量 = " + str(search_count))
