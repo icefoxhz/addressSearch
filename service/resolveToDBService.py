@@ -81,7 +81,7 @@ class ResolveToDBService:
             self._addressMapping.delete_data(self._parsed_address_table, tId)
 
     @Transactional()
-    def do_run(self, df, progress_bar=None):
+    def do_run(self, df, is_participle_continue=False, progress_bar=None):
         with (self._lacModelManageService as model):
             try:
                 ids_insert = []
@@ -105,8 +105,11 @@ class ResolveToDBService:
                     is_del = int(is_del) if is_del is not None else 0
 
                     t_id = row[self._ID_FIELD_NAME]
+                    if is_participle_continue:
+                        t_id = t_id + "_" + str(1)
+
                     if flag == DBOperator.INSERT.value:
-                        if is_del == 1:  # 删除后重新新增实际是更新
+                        if is_del == 1:  # 如果这条记录已经删除了。（删除后重新新增, 实际是更新)
                             ids_update.append(t_id)
                         else:
                             ids_insert.append(t_id)
@@ -124,9 +127,13 @@ class ResolveToDBService:
                     # result = resultList[0]
 
                     address_parser = self._applicationContext.get_bean("addressParseService")
-                    succeed, section_fir, section_main, section_mid, section_last, section_build_number = address_parser.run(model, full_name)
+                    succeed, section_fir, section_main, section_mid, section_last, section_build_number = address_parser.run(
+                        model, full_name, is_participle_continue)
                     if not succeed:
                         continue
+
+                    if is_participle_continue:
+                        print("11111111111111")
 
                     result = section_fir | section_main | section_mid | section_last | section_build_number
 
@@ -213,7 +220,9 @@ class ResolveToDBService:
                 df = self._addressMapping.get_address_data(self._address_table, page_size, start)
                 if df is None or len(df) == 0:
                     break
-                self._self.do_run(df, progress_bar)
+                self._self.do_run(df, False, progress_bar)
+                self._self.do_run(df, True, progress_bar)
+
                 start += page_size
 
                 if start >= end:

@@ -33,10 +33,10 @@ class AddressParseService:
         self._common_symbol = ["·"]
 
         # --------------------------------
-        self._building_chinese_words = ["幢", "栋", "区", "号楼", "楼", "座",
+        self._building_chinese_words = ["幢", "栋", "号楼", "楼", "座",
                                         "号厂区", "号东厂区", "号南厂区", "号西厂区", "号北厂区",
                                         ]
-        self._courtyard_chinese_words = ["期"]
+        self._courtyard_chinese_words = ["期", "区"]
 
         # --------------------------------
         self._CONJUNCTION = "-"
@@ -70,8 +70,9 @@ class AddressParseService:
         if self._print_debug:
             print(msg)
 
-    def run(self, model: LAC, addr_string: str):
+    def run(self, model: LAC, addr_string: str, is_participle_continue=False):
         """
+        :param is_participle_continue:
         :param model:
         :param addr_string:
         :return:
@@ -88,10 +89,17 @@ class AddressParseService:
 
             # 分詞並處理
             cut_list = self.participleAndProcess(model, addr_string)
+            # 每个分词再次判断处理
+            if is_participle_continue:
+                cut_list = self.participleContinue(model, cut_list)
+                self.__print("二次分词结果: " + str(cut_list))
+
+            if cut_list is None:
+                return False, None, None, None, None, None
 
             # 找主体
-            is_find_body, body_idx = self.findMainBodyIndex(addr_string, cut_list)
-            if not is_find_body:
+            body_idx = self.findMainBodyIndex(model, addr_string, cut_list)
+            if body_idx == -1:
                 return False, None, None, None, None, None
 
             # 处理并生成 sections
@@ -102,6 +110,33 @@ class AddressParseService:
         except Exception as e:
             self.__print(str(e))
             return False, None, None, None, None, None
+
+    def participleContinue(self, model: LAC, cut_list):
+        word_list = cut_list[0]
+        lac_list = cut_list[1]
+
+        word_list_ret = copy.deepcopy(word_list)
+        lac_list_ret = copy.deepcopy(lac_list)
+
+        # 獲取加載的字典表
+        model_dict = model.__getattribute__("model").custom.dictitem
+        for i in range(len(word_list) - 1, -1, -1):
+            word = word_list[i]
+            if word in model_dict:
+                _, word, _ = self.__cutToCourtyardByChineseWords(model, word, False)
+                cut_list_temp = model.run(word)
+                word_list_temp = cut_list_temp[0]
+                lac_list_temp = cut_list_temp[1]
+                if len(word_list_temp) > 1:
+                    for word2 in word_list_temp:
+                        if word2 in model_dict:
+                            word_list_ret.pop(i)
+                            lac_list_ret.pop(i)
+                            # 在word_list_ret的下标为i的位置插入cut_list_temp列表的元素
+                            word_list_ret[i:0] = word_list_temp
+                            lac_list_ret[i:0] = lac_list_temp
+                            break
+        return [word_list_ret, lac_list_ret] if len(word_list_ret) != len(word_list) else None
 
     def acceptAddress(self, addr_string: str):
         """
@@ -168,7 +203,7 @@ class AddressParseService:
         """
         cut_succeed, addr_string, last_string = self.__cutToBuilding(model, addr_string)
         if not cut_succeed:
-            cut_succeed, addr_string, last_string = self.__cutToCourtyardByChineseWords(addr_string)
+            cut_succeed, addr_string, last_string = self.__cutToCourtyardByChineseWords(model, addr_string)
         return cut_succeed, addr_string, last_string
 
     def __cutToBuilding(self, model: LAC, addr_string: str):
@@ -226,7 +261,7 @@ class AddressParseService:
 
         return number
 
-    def __cutToCourtyardByChineseWords(self, addr_string: str):
+    def __cutToCourtyardByChineseWords(self, model: LAC, addr_string: str, judge_in_dict=True):
         """
         根据中文字符判断截取到小区院落的位置。
         :return:
@@ -234,6 +269,8 @@ class AddressParseService:
         addr_string_copy = copy.deepcopy(addr_string)
         cut_succeed = False
         find_result = None
+        do_model = False
+        cut_list = []
 
         # 1. 根据中文标识符判断
         for symbol in self._courtyard_chinese_words:
@@ -247,15 +284,27 @@ class AddressParseService:
                 match = re.search(re_str, addr_string)
                 if match:
                     result = match.group(0)
-                    find_result = result
                     # print(result)
-                    # 能找到就认为可以截取到楼栋
-                    number = result[:0 - len(symbol)]
-                    number = CommonTool.chinese_to_arabic(number)
-                    addr_split = addr_string.split(result)
-                    # ls[1] 是楼栋之后的地址, 以后解析门牌会用到
-                    addr_string = addr_split[0] + str(number)
-                    cut_succeed = True
+                    find_result = result
+
+                    is_in_dict = False
+                    # 当前找到的必须不在字典中才行
+                    if judge_in_dict:
+                        if not do_model:
+                            cut_list = model.run(addr_string)[0]
+                        for word in cut_list:
+                            if result in word:
+                                is_in_dict = True
+                                break
+
+                    if not is_in_dict:
+                        # 能找到就认为可以截取到楼栋
+                        number = result[:0 - len(symbol)]
+                        number = CommonTool.chinese_to_arabic(number)
+                        addr_split = addr_string.split(result)
+                        # ls[1] 是楼栋之后的地址, 以后解析门牌会用到
+                        addr_string = addr_split[0] + str(number)
+                        cut_succeed = True
 
         # 獲取last_string
         last_string = None
@@ -529,43 +578,83 @@ class AddressParseService:
             if number > 0:
                 cut_words[i] = str(number)
 
-    def findMainBodyIndex(self, addr_string: str, cut_list: list):
+    @staticmethod
+    def findMainBodyIndexByDict(model: LAC, cut_words, only_in_dict_return=False):
+        """
+        根据字典表，截取到楼栋的位置。（分词在字典中，且该词的后一个词是数字。 only_in_dict_return=True则，分词在字典中就返回）
+        """
+        model_dict = model.__getattribute__("model").custom.dictitem
+        find_idx = -1
+
+        for i in range(len(cut_words) - 1, -1, -1):
+            if i < len(cut_words) - 1:
+                word = cut_words[i]
+                if only_in_dict_return:
+                    if word in model_dict:
+                        find_idx = i
+                        break
+                else:
+                    word_behind = cut_words[i + 1]
+                    if word in model_dict and CommonTool.is_first_char_number_or_letter(word_behind):
+                        find_idx = i
+                        break
+
+        return find_idx
+
+    @staticmethod
+    def findMainBodyIndexByJudge(cut_words):
+        find_idx = -1
+        for i in range(len(cut_words) - 1, -1, -1):
+            word = cut_words[i]
+
+            # 已经是中文开头了，应该就是 building
+            if CommonTool.is_first_char_chinese(word):
+                find_idx = i
+                # building = word
+                break
+
+            # 看数字或字母前面的是不是 building
+            prev_word = cut_words[i - 1]
+            if (CommonTool.is_first_char_number_or_letter(word) and
+                    not CommonTool.is_first_char_number_or_letter(prev_word)):
+                find_idx = i - 1
+                # building = prev_word
+                break
+        return find_idx
+
+    def findMainBodyIndex(self, model: LAC, addr_string: str, cut_list: list):
         """
         找到主体， 这步非常重要
+        :param model:
         :param addr_string:
         :param cut_list:
         :return:
         """
         cut_words = cut_list[0]
-        lac_words = cut_list[1]
+        # lac_words = cut_list[1]
 
         idx = -1
-        # building = None
         try:
-            # 1. 第一种方式找主体
-            for i in range(len(cut_words) - 1, -1, -1):
-                word = cut_words[i]
+            # 第1种的方式找主体
+            idx = self.findMainBodyIndexByDict(model, cut_words, False)
+            if idx != -1:
+                return idx
 
-                # 已经是中文开头了，应该就是 building
-                if CommonTool.is_first_char_chinese(word):
-                    idx = i
-                    # building = word
-                    break
+            # 第2种方式找主体
+            idx = self.findMainBodyIndexByJudge(cut_words)
+            if idx != -1:
+                return idx
 
-                # 看数字或字母前面的是不是 building
-                prev_word = cut_words[i - 1]
-                if CommonTool.is_first_char_number(word) and not CommonTool.is_first_char_number(prev_word):
-                    idx = i - 1
-                    # building = prev_word
-                    break
-        except:
-            pass
+            # 第3种方式找主体
+            idx = self.findMainBodyIndexByDict(model, cut_words, True)
+            if idx != -1:
+                return idx
+        finally:
+            self.__print("找到主体: " + str(cut_words[idx] if idx != -1 else None))
 
-        self.__print("找到主体: " + str(cut_words[idx] if idx != -1 else None))
+        return idx
 
-        return idx != -1, idx
-
-    def __process_last_string(self,  model: LAC, address_section_last, last_string):
+    def __process_last_string(self, model: LAC, address_section_last, last_string):
         last_string_copy = copy.deepcopy(last_string)
         if last_string is not None and last_string != "":
             for num_symbol in self._conjunction_symbols:
@@ -625,7 +714,9 @@ class AddressParseService:
         address_section_build_number = {es_schema_field_building_number: -99999}
         if len(address_section_mid) > 0:
             try:
-                address_section_build_number[es_schema_field_building_number] = int(address_section_mid["mid_1"])
+                # 如果只有1个值，就是 mid_1 ,  如果有2个值，就是 mid_2
+                key_name = "mid_" + str(len(address_section_mid))
+                address_section_build_number[es_schema_field_building_number] = int(address_section_mid[key_name])
             except:
                 pass
 

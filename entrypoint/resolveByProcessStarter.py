@@ -24,6 +24,7 @@ from addressSearch.utils.commonTool import CommonTool
 class ServiceApplication(ApplicationStarter):
     def __init__(self):
         super().__init__()
+        self._esInitService = None
         self._address_table = None
         self._address_parsed_table = None
         self._address_mapping = None
@@ -66,6 +67,8 @@ class ServiceApplication(ApplicationStarter):
         self._application_environment = self.application_context.get_bean("applicationEnvironment")
         self._address_mapping = self.application_context.get_bean("addressMapping")
         self._configService = self.application_context.get_bean("configService")
+        self._esInitService = self.application_context.get_bean("esInitService")
+        self._esInitService.create_scripts()
 
 
 def task_parse(start_row, end_row):

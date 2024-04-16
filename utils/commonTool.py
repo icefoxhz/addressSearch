@@ -55,6 +55,15 @@ class CommonTool:
             return False
 
     @staticmethod
+    def is_first_char_letter(s):
+        pattern = r'^[a-zA-Z]'
+        return bool(re.match(pattern, s))
+
+    @staticmethod
+    def is_first_char_number_or_letter(s):
+        return CommonTool.is_first_char_letter(s) or CommonTool.is_first_char_number(s)
+
+    @staticmethod
     def is_first_char_chinese(s):
         if len(s) > 0 and '\u4e00' <= s[0] <= '\u9fff':
             return True

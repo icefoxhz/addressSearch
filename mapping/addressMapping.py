@@ -48,15 +48,15 @@ class AddressMapping:
     def set_all_waiting_completed(self, table):
         pass
 
-    @Update("update #{table} set op_flag=0 where id=#{table_id}")
+    @Update("update #{table} set op_flag=0 where id='#{table_id}'")
     def set_inserted(self, table, table_id):
         pass
 
-    @Update("update #{table} set op_flag=1 where id=#{table_id}")
+    @Update("update #{table} set op_flag=1 where id='#{table_id}'")
     def set_modified(self, table, table_id):
         pass
 
-    @Update("update #{table} set op_flag=2 where id=#{table_id}")
+    @Update("update #{table} set op_flag=2 where id='#{table_id}'")
     def set_deleted(self, table, table_id):
         pass
 

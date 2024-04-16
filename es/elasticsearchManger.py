@@ -43,6 +43,12 @@ class ElasticsearchManger:
             conn.delete(index=self.__indexName, id=dataId)
         self.__local_obj.last_do_time = time.time()
 
+    def put_script(self, script_name, script_content):
+        conn = self._get_conn()
+        response = conn.put_script(id=script_name, body=script_content)
+        self.__local_obj.last_do_time = time.time()
+        return response.get('acknowledged')
+
     def __conn(self):
         if hasattr(self.__local_obj, "es_conn") and self.__local_obj.es_conn is not None:
             if self.is_time_out():

@@ -93,6 +93,9 @@ async def searchByAddress(request: Request):
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_address_search(address_string)
+    if not succeed:
+        succeed, result = esSearchService.run_address_search(address_string, True)
+
     if succeed:
         await generate_user_result(result)
 
@@ -116,6 +119,9 @@ async def searchByAddressDev(request: Request):
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_address_search(address_string)
+    if not succeed:
+        succeed, result = esSearchService.run_address_search(address_string, True)
+
     return _make_rest_result(key, result, "未找到" if not succeed else None)
 
 
@@ -137,6 +143,9 @@ async def searchByAddressEx(request: Request):
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     esSearchService.set_return_multi()
     succeed, result = esSearchService.run_address_search(address_string)
+    if not succeed:
+        succeed, result = esSearchService.run_address_search(address_string, True)
+
     return _make_rest_result(key, result, "未找到" if not succeed else None)
 
 
@@ -251,6 +260,9 @@ def start_rest_service():
     """
     启动
     """
+    esInitService = serviceApplication.application_context.get_bean("esInitService")
+    esInitService.create_scripts()
+
     # 启动rest服务
     applicationEnvironment = serviceApplication.application_context.get_bean("applicationEnvironment")
     port = applicationEnvironment.get("project.http.rest_port")

@@ -18,11 +18,13 @@ class EsSearchService:
     @Value({
         "project.print_debug": "_print_debug",
         "project.blur_search": "_blur_search",
+        "project.score_script_id": "_score_script_id",
         "project.local_config.address_max_return": "_address_max_return",
     })
     def __init__(self):
         self._print_debug = False
         self._blur_search = 0
+        self._score_script_id = None
         self._address_table = None
         self._parsed_address_table = None
         self._ip = None
@@ -93,9 +95,10 @@ class EsSearchService:
     #     es.create(self._db_name)
     #     es.close()
 
-    def _run_address_search_not_by_thesaurus(self, address_string):
+    def _run_address_search_not_by_thesaurus(self, address_string, is_participle_continue=False):
         """
         不使用同义词通过地名地址匹配
+        :param is_participle_continue:
         :param address_string:
         :return:
         """
@@ -104,7 +107,7 @@ class EsSearchService:
         # 分词
         with self._lacModelManageService as model:
             succeed, sections_fir, sections_main, sections_mid, sections_last, sections_building_number = self._addressParseService.run(
-                model, address_string)
+                model, address_string, is_participle_continue)
 
         if not succeed or sections_main is None or len(sections_main) == 0:
             log.error("分詞失敗，地址: " + address_string)
@@ -138,8 +141,8 @@ class EsSearchService:
                             return succeed, result
         return False, {}
 
-    def run_address_search(self, address_string):
-        succeed, result = self._run_address_search_not_by_thesaurus(address_string)
+    def run_address_search(self, address_string, is_participle_continue=False):
+        succeed, result = self._run_address_search_not_by_thesaurus(address_string, is_participle_continue)
         # 还是未找到的話，使用同义词
         if not succeed:
             succeed, result = self._run_address_search_by_thesaurus(address_string)
@@ -190,17 +193,30 @@ class EsSearchService:
                     })
 
         # 组织主体后部分的搜索
-        if sections_mid is not None and len(sections_mid) > 0:
-            d_mid = {"bool": {"should": [], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
-            for field, val in sections_mid.items():
+        sections_mid_len = len(sections_mid)
+        if sections_mid is not None and sections_mid_len > 0:
+            if sections_mid_len == 1:
+                d_mid = {"bool": {"should": [], "minimum_should_match": "0%"}}
+                key = es_schema_fields_mid[0]
                 d_mid["bool"]["should"].append(
                     {
                         "multi_match": {
-                            "query": str(val),
-                            "fields": es_schema_fields_mid
+                            "query": sections_mid[key],
+                            "fields": es_schema_field_building_number
                         }
                     }
                 )
+            else:
+                d_mid = {"bool": {"should": [], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
+                for field, val in sections_mid.items():
+                    d_mid["bool"]["should"].append(
+                        {
+                            "multi_match": {
+                                "query": str(val),
+                                "fields": es_schema_fields_mid
+                            }
+                        }
+                    )
 
             val = sections_building_number[es_schema_field_building_number]
             if val >= 0:
@@ -295,7 +311,8 @@ class EsSearchService:
         for search_param in search_params:
             if self._print_debug:
                 # print("======", str(search_param))
-                print("search_param :" + str(search_param["query"]["function_score"]["query"]))
+                # print("search_param :" + str(search_param["query"]["function_score"]["query"]))
+                print("search_param :" + str(search_param))
             succeed, search_result = self._do_address_search(search_param)
             if succeed:
                 break
@@ -484,17 +501,7 @@ class EsSearchService:
         }
         return script
 
-    @staticmethod
-    def _get_score_script(sections_fir, sections_mid, sections_last):
-        """
-        评分规则:
-            找到主体 50 分
-            找到楼栋 20分
-            找到其他部分每个均 5分
-            --------------
-            全部分词都能匹配直接就是100分
-            如果超过100分， 100 * (分词匹配到的个数 / 分词总数)
-        """
+    def _get_score_script(self, sections_fir, sections_mid, sections_last):
         if sections_fir is None:
             sections_fir = {}
         if sections_mid is None:
@@ -505,89 +512,12 @@ class EsSearchService:
         script = {
             "script_score": {
                 "script": {
-                    "source": """
-                            // 能进入这里的都是找到主体的，给个基础分
-                            double base_score = 50;
-                            double all_found_count = 0.0;
-                            double all_value_count = 0.0;
-                           
-                            // fir 算分， 每找到一个得5分
-                            double found_count = 0.0;
-                            int query_value_length = params.query_value_fir.length;
-                            int query_field_length = params.query_fields_fir.length;
-                            for (int i = 0; i < query_field_length; i++) {
-                                if (doc.containsKey(params.query_fields_fir[i]) && doc[params.query_fields_fir[i]].size() > 0) {
-                                    for (int j = 0; j < query_value_length; j++) {
-                                        if (doc[params.query_fields_fir[i]].value == params.query_value_fir[j]) {
-                                            found_count += 1;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            double fir_score = found_count * 5;
-                            all_found_count += found_count;
-                            all_value_count += query_value_length;
-                            
-                            // mid 算分, 能找到楼栋直接给20分
-                            double mid_score = 0.0;
-                            found_count = 0.0;
-                            query_value_length = params.query_value_mid.length;
-                            query_field_length = params.query_fields_mid.length;
-                            for (int i = 0; i < query_field_length; i++) {
-                                if (doc.containsKey(params.query_fields_mid[i]) && doc[params.query_fields_mid[i]].size() > 0) {
-                                    for (int j = 0; j < query_value_length; j++) {
-                                        if (doc[params.query_fields_mid[i]].value == params.query_value_mid[j]) {
-                                            found_count += 1;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            if (found_count > 0){
-                                mid_score =  20;
-                            }
-                            all_found_count += found_count;
-                            all_value_count += query_value_length;
-                            
-                            // last 算分，每找到一个得5分
-                            found_count = 0.0;
-                            query_value_length = params.query_value_last.length;
-                            query_field_length = params.query_fields_last.length;
-                            for (int i = 0; i < query_field_length; i++) {
-                                if (doc.containsKey(params.query_fields_last[i]) && doc[params.query_fields_last[i]].size() > 0) {
-                                    for (int j = 0; j < query_value_length; j++) {
-                                        if (doc[params.query_fields_last[i]].value == params.query_value_last[j]) {
-                                            found_count += 1;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            double last_score = found_count * 5;
-                            all_found_count += found_count;
-                            all_value_count += query_value_length;
-                            
-                            // 找到数量的百分比作为评分
-                            double score = 0.0;
-                            if (all_value_count == all_found_count){
-                                score = 100;
-                                return score;
-                            }
-                            
-                            score = base_score + fir_score + mid_score + last_score;
-                            if (score >= 100){
-                                score = 100 * (all_value_count / all_found_count);
-                            }
-                            
-                            return score;
-
-                                  """,
-                    "lang": "painless",
+                    "id": self._score_script_id,
                     "params": {
                         "query_fields_fir": es_schema_fields_fir,
                         "query_fields_mid": es_schema_fields_mid,
                         "query_fields_last": es_schema_fields_last,
+                        "query_field_building_number": es_schema_field_building_number,
                         "query_value_fir": list(sections_fir.values()),
                         "query_value_mid": list(sections_mid.values()),
                         "query_value_last": list(sections_last.values())
@@ -595,4 +525,5 @@ class EsSearchService:
                 }
             }
         }
+
         return script
