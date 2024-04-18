@@ -40,7 +40,7 @@ class EsSearchService:
         self._address_max_return = 20
         self._return_multi = False
         self._es_cli = None
-        self._build_number_tolerance = 10  # 前后n栋的来去
+        self._build_number_tolerance = 5  # 前后n栋的来去
 
     def _after_init(self):
         self._address_table = self._configService.get_addr_cnf("data_table")
