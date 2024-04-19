@@ -3,6 +3,8 @@ import os
 import threading
 import uuid
 
+import jieba
+import pandas as pd
 from LAC import LAC
 from pySimpleSpringFramework.spring_core.log import log
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
@@ -25,8 +27,8 @@ class LacModelManageService:
     def __init__(self):
         self._model_path = None
         self._dict_path = None
+        self._dict_path_least = None
         self._dict_dir = None
-        self._dict_path = None
         self._configMapping = None
         self._configService = None
         self._databaseManager = None
@@ -49,6 +51,7 @@ class LacModelManageService:
 
     def _generateDict(self):
         self._dict_path = self._dict_dir + os.sep + "custom_" + str(uuid.uuid4()) + ".txt"
+        self._dict_path_least = self._dict_dir + os.sep + "custom_least_" + str(uuid.uuid4()) + ".txt"
         # 判断文件是否存在
         if not os.path.exists(self._dict_path):
             # 如果文件不存在，则创建文件
@@ -64,10 +67,39 @@ class LacModelManageService:
         data["dict_value"].to_csv(self._dict_path, index=False, header=False)
         # print("===== 重新下载分词字典完成 =====")
 
+        dict_least_list = data["dict_value"].to_list()
+        df_least = self._generate_least_word_dict(dict_least_list)
+        df_least.to_csv(self._dict_path_least, index=False, header=False)
+
+    @staticmethod
+    def _generate_least_word_dict(dict_list):
+        """
+        只保留最小细度的字典。 比如： 中关村创新园、中关村、创新园 ， 那么 中关村创新园 要删除
+        """
+        dict_list = list(set(dict_list))
+
+        del_words = []
+        for word1 in dict_list:
+            for word2 in dict_list:
+                if word1 == word2:
+                    continue
+                # 分词后只有1个字的就不要分了
+                if (word2.startswith(word1) or word2.endswith(word1)) and len(word2.replace(word1, "")) > 1:
+                    del_words.append(word2)
+
+        del_words = list(set(del_words))
+        for word in del_words:
+            dict_list.remove(word)
+        df = pd.DataFrame(dict_list, columns=['dict_value'])
+        return df
+
     def _after_init(self):
         self._generateDict()
         for _ in range(self._max_size + 1):
             self.__q.append(self.__generateModel())
+
+        # 用jieba
+        jieba.load_userdict(self._dict_path_least)
 
     def __generateModel(self):
         os.chdir(self._currentDir)

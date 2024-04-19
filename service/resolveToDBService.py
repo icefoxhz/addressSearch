@@ -9,7 +9,8 @@ from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
 from tqdm import tqdm
 
 from addressSearch.enums.dbOperator import DBOperator
-from addressSearch.es.schemas import es_schema_field_building_number
+from addressSearch.es.schemas import es_schema_field_building_number, es_schema_fields_fir, es_schema_fields_main, \
+    es_schema_fields_mid, es_schema_fields_last
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.configService import ConfigService
 from addressSearch.service.lacModelManageService import LacModelManageService
@@ -83,6 +84,7 @@ class ResolveToDBService:
     @Transactional()
     def do_run(self, df, is_participle_continue=False, progress_bar=None):
         with (self._lacModelManageService as model):
+            do_count = 0
             try:
                 ids_insert = []
                 ids_update = []
@@ -132,8 +134,12 @@ class ResolveToDBService:
                     if not succeed:
                         continue
 
-                    if is_participle_continue:
-                        print("11111111111111")
+                    if (len(section_fir) > len(es_schema_fields_fir)
+                            or len(section_main) > len(es_schema_fields_main)
+                            or len(section_mid) > len(es_schema_fields_mid)
+                            or len(section_last) > len(es_schema_fields_last)):
+                        log.error("分詞超过限制，地址: " + full_name)
+                        continue
 
                     result = section_fir | section_main | section_mid | section_last | section_build_number
 
@@ -148,8 +154,10 @@ class ResolveToDBService:
                             data_modify.append(result)
                         else:
                             data_insert.append(result)
+                        do_count += 1
                     if flag == DBOperator.UPDATE.value:
                         data_modify.append(result)
+                        do_count += 1
 
                 # 新增
                 if len(data_insert) > 0:
@@ -175,7 +183,7 @@ class ResolveToDBService:
                 log.error("ResolveToDBService do_run => " + str(e))
 
         if progress_bar is not None:
-            progress_bar.update(len(df))
+            progress_bar.update(do_count)
 
     # def start_by_thread(self):
     #     self._addressMapping.truncate_table(self._parsed_address_table)

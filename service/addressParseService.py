@@ -1,11 +1,13 @@
 import copy
 import re
 
+import jieba
 from LAC import LAC
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value
 
-from addressSearch.es.schemas import es_schema_field_building_number
+from addressSearch.es.schemas import es_schema_field_building_number, es_schema_fields_fir, es_schema_fields_main, \
+    es_schema_fields_mid, es_schema_fields_last
 from addressSearch.utils.commonTool import CommonTool
 
 
@@ -37,6 +39,9 @@ class AddressParseService:
                                         "号厂区", "号东厂区", "号南厂区", "号西厂区", "号北厂区",
                                         ]
         self._courtyard_chinese_words = ["期", "区"]
+
+        # 新安花苑第二社区  =>  新安花苑2。 （新安花苑第二社区和新安花苑 都在字典表中，进行2次处理）
+        self._extract_again_chinese_words = ["期", "区", "社区"]
 
         # --------------------------------
         self._CONJUNCTION = "-"
@@ -72,9 +77,9 @@ class AddressParseService:
 
     def run(self, model: LAC, addr_string: str, is_participle_continue=False):
         """
-        :param is_participle_continue:
         :param model:
         :param addr_string:
+        :param is_participle_continue:
         :return:
         """
         try:
@@ -101,22 +106,31 @@ class AddressParseService:
             body_idx = self.findMainBodyIndex(model, addr_string, cut_list)
             if body_idx == -1:
                 return False, None, None, None, None, None
-
             # 处理并生成 sections
-            address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number = self.create_sections(
+            succeed, [address_section_first, address_section_main, address_section_mid, address_section_last,
+                      address_section_build_number] = self.create_sections(
                 cut_list, body_idx, model, last_string)
 
-            return True, address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number
+            #  -------------
+            if not succeed:
+                # 找主体
+                body_idx = self.findMainBodyIndexReverse(model, addr_string, cut_list)
+                if body_idx == -1:
+                    return False, None, None, None, None, None
+                # 处理并生成 sections
+                succeed, [address_section_first, address_section_main, address_section_mid, address_section_last,
+                          address_section_build_number] = self.create_sections(
+                    cut_list, body_idx, model, last_string)
+
+            return succeed, address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number
         except Exception as e:
             self.__print(str(e))
             return False, None, None, None, None, None
 
     def participleContinue(self, model: LAC, cut_list):
         word_list = cut_list[0]
-        lac_list = cut_list[1]
 
         word_list_ret = copy.deepcopy(word_list)
-        lac_list_ret = copy.deepcopy(lac_list)
 
         # 獲取加載的字典表
         model_dict = model.__getattribute__("model").custom.dictitem
@@ -124,19 +138,44 @@ class AddressParseService:
             word = word_list[i]
             if word in model_dict:
                 _, word, _ = self.__cutToCourtyardByChineseWords(model, word, False)
-                cut_list_temp = model.run(word)
-                word_list_temp = cut_list_temp[0]
-                lac_list_temp = cut_list_temp[1]
-                if len(word_list_temp) > 1:
+                word_list_temp = jieba.lcut(word)
+
+                if len(word_list_temp) > 1 and (word_list_temp[0] in model_dict or word_list_temp[-1] in model_dict):
                     for word2 in word_list_temp:
                         if word2 in model_dict:
                             word_list_ret.pop(i)
-                            lac_list_ret.pop(i)
                             # 在word_list_ret的下标为i的位置插入cut_list_temp列表的元素
                             word_list_ret[i:0] = word_list_temp
-                            lac_list_ret[i:0] = lac_list_temp
                             break
+        lac_list_ret = ["m" for _ in range(len(word_list_ret))]
         return [word_list_ret, lac_list_ret] if len(word_list_ret) != len(word_list) else None
+
+    # def participleContinue(self, model: LAC, cut_list):
+    #     word_list = cut_list[0]
+    #     lac_list = cut_list[1]
+    #
+    #     word_list_ret = copy.deepcopy(word_list)
+    #     lac_list_ret = copy.deepcopy(lac_list)
+    #
+    #     # 獲取加載的字典表
+    #     model_dict = model.__getattribute__("model").custom.dictitem
+    #     for i in range(len(word_list) - 1, -1, -1):
+    #         word = word_list[i]
+    #         if word in model_dict:
+    #             _, word, _ = self.__cutToCourtyardByChineseWords(model, word, False)
+    #             cut_list_temp = model.run(word)
+    #             word_list_temp = cut_list_temp[0]
+    #             lac_list_temp = cut_list_temp[1]
+    #             if len(word_list_temp) > 1 and (word_list_temp[0] in model_dict or word_list_temp[-1] in model_dict):
+    #                 for word2 in word_list_temp:
+    #                     if word2 in model_dict:
+    #                         word_list_ret.pop(i)
+    #                         lac_list_ret.pop(i)
+    #                         # 在word_list_ret的下标为i的位置插入cut_list_temp列表的元素
+    #                         word_list_ret[i:0] = word_list_temp
+    #                         lac_list_ret[i:0] = lac_list_temp
+    #                         break
+    #     return [word_list_ret, lac_list_ret] if len(word_list_ret) != len(word_list) else None
 
     def acceptAddress(self, addr_string: str):
         """
@@ -261,7 +300,7 @@ class AddressParseService:
 
         return number
 
-    def __cutToCourtyardByChineseWords(self, model: LAC, addr_string: str, judge_in_dict=True):
+    def __cutToCourtyardByChineseWords(self, model: LAC, addr_string: str, judge_in_before_building_words=True):
         """
         根据中文字符判断截取到小区院落的位置。
         :return:
@@ -269,11 +308,12 @@ class AddressParseService:
         addr_string_copy = copy.deepcopy(addr_string)
         cut_succeed = False
         find_result = None
-        do_model = False
         cut_list = []
 
+        chinese_words = self._extract_again_chinese_words if not judge_in_before_building_words else self._courtyard_chinese_words
+
         # 1. 根据中文标识符判断
-        for symbol in self._courtyard_chinese_words:
+        for symbol in chinese_words:
             re_strs = [
                 r'第+\d+[A-Za-z]+区|\d+区|[A-Za-z]+区|[A-Za-z]+\d+区'.replace("区", symbol),  # 阿拉伯数字和字母的组合
                 r'\d+[A-Za-z]+区|\d+区|[A-Za-z]+区|[A-Za-z]+\d+区'.replace("区", symbol),  # 阿拉伯数字和字母的组合
@@ -287,17 +327,16 @@ class AddressParseService:
                     # print(result)
                     find_result = result
 
-                    is_in_dict = False
-                    # 当前找到的必须不在字典中才行
-                    if judge_in_dict:
-                        if not do_model:
-                            cut_list = model.run(addr_string)[0]
+                    is_in_words = False
+                    # 当前找到的必须不在截取到楼栋后的字符串分词中才行
+                    if judge_in_before_building_words:
+                        cut_list = model.run(addr_string)[0]
                         for word in cut_list:
                             if result in word:
-                                is_in_dict = True
+                                is_in_words = True
                                 break
 
-                    if not is_in_dict:
+                    if not is_in_words:
                         # 能找到就认为可以截取到楼栋
                         number = result[:0 - len(symbol)]
                         number = CommonTool.chinese_to_arabic(number)
@@ -587,13 +626,13 @@ class AddressParseService:
         find_idx = -1
 
         for i in range(len(cut_words) - 1, -1, -1):
-            if i < len(cut_words) - 1:
-                word = cut_words[i]
-                if only_in_dict_return:
-                    if word in model_dict:
-                        find_idx = i
-                        break
-                else:
+            word = cut_words[i]
+            if only_in_dict_return:
+                if word in model_dict:
+                    find_idx = i
+                    break
+            else:
+                if i < len(cut_words) - 1:
                     word_behind = cut_words[i + 1]
                     if word in model_dict and CommonTool.is_first_char_number_or_letter(word_behind):
                         find_idx = i
@@ -647,6 +686,38 @@ class AddressParseService:
 
             # 第3种方式找主体
             idx = self.findMainBodyIndexByDict(model, cut_words, True)
+            if idx != -1:
+                return idx
+        finally:
+            self.__print("找到主体: " + str(cut_words[idx] if idx != -1 else None))
+
+        return idx
+
+    def findMainBodyIndexReverse(self, model: LAC, addr_string: str, cut_list: list):
+        """
+        找到主体， 这步非常重要
+        :param model:
+        :param addr_string:
+        :param cut_list:
+        :return:
+        """
+        cut_words = cut_list[0]
+        # lac_words = cut_list[1]
+
+        idx = -1
+        try:
+            # 第1种的方式找主体
+            idx = self.findMainBodyIndexByDict(model, cut_words, True)
+            if idx != -1:
+                return idx
+
+            # 第2种方式找主体
+            idx = self.findMainBodyIndexByJudge(cut_words)
+            if idx != -1:
+                return idx
+
+            # 第3种方式找主体
+            idx = self.findMainBodyIndexByDict(model, cut_words, False)
             if idx != -1:
                 return idx
         finally:
@@ -723,7 +794,14 @@ class AddressParseService:
         # last_string 部分分词
         self.__process_last_string(model, address_section_last, last_string)
 
+        if (len(address_section_first) > len(es_schema_fields_fir)
+                or len(address_section_main) > len(es_schema_fields_main)
+                or len(address_section_mid) > len(es_schema_fields_mid)
+                or len(address_section_last) > len(es_schema_fields_last)):
+            return False, [None, None, None, None, None]
+
         self.__print("=== sections ===")
         self.__print(str(address_section_first) + str(address_section_main) + str(address_section_mid) +
                      str(address_section_last) + str(address_section_build_number))
-        return address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number
+        return True, [address_section_first, address_section_main, address_section_mid, address_section_last,
+                      address_section_build_number]

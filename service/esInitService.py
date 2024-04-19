@@ -30,4 +30,5 @@ class EsInitService:
             if es_conn is None:
                 return
         succeed = es_cli.put_script(self._score_script_id, SEARCH_SCORE_SCRIPT)
-        print("是否成功创建ES脚本: ", succeed)
+        if not succeed:
+            raise Exception("创建ES脚本失败")

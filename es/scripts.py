@@ -17,6 +17,7 @@ SEARCH_SCORE_SCRIPT = {
             double all_value_count = 0.0;
     
             // =============== fir 算分， 每找到一个得5分
+            int every_score_fir = 5;
             double found_count = 0.0;
             int query_value_length = params.query_value_fir.length;
             int query_field_length = params.query_fields_fir.length;
@@ -30,7 +31,7 @@ SEARCH_SCORE_SCRIPT = {
                     }
                 }
             }
-            double fir_score = found_count * 5;
+            double fir_score = found_count * every_score_fir;
             all_found_count += found_count;
             all_value_count += query_value_length;
     
@@ -80,7 +81,8 @@ SEARCH_SCORE_SCRIPT = {
             all_found_count += found_count;
             all_value_count += query_value_length;
     
-            // ================ last 算分，每找到一个得5分
+            // ================ last 算分，每找到一个得n分
+            int every_score_last = 4;
             found_count = 0.0;
             query_value_length = params.query_value_last.length;
             query_field_length = params.query_fields_last.length;
@@ -94,7 +96,7 @@ SEARCH_SCORE_SCRIPT = {
                     }
                 }
             }
-            double last_score = found_count * 5;
+            double last_score = found_count * every_score_last;
             
             // last要算减分项
             double last_score_de = 0.0;
@@ -106,7 +108,7 @@ SEARCH_SCORE_SCRIPT = {
                     }
                 }
                 if (query_value_length < containsLastKeyCount){
-                    last_score_de = -5; // 多了就 -5分
+                    last_score_de = 0 - every_score_last; // 多了就 -n分
                 }
             //}
             // -------------------------

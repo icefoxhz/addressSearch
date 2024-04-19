@@ -40,7 +40,7 @@ class EsSearchService:
         self._address_max_return = 20
         self._return_multi = False
         self._es_cli = None
-        self._build_number_tolerance = 5  # 前后n栋的来去
+        self._build_number_tolerance = 10  # 前后n栋的来去
 
     def _after_init(self):
         self._address_table = self._configService.get_addr_cnf("data_table")
@@ -104,6 +104,7 @@ class EsSearchService:
         """
         if self._print_debug:
             print("\n-----------------------------------------------------\n")
+
         # 分词
         with self._lacModelManageService as model:
             succeed, sections_fir, sections_main, sections_mid, sections_last, sections_building_number = self._addressParseService.run(
@@ -113,10 +114,19 @@ class EsSearchService:
             log.error("分詞失敗，地址: " + address_string)
             return False, {}
 
-        # 生成查询参数
-        search_params = self.__create_address_search_params(sections_fir, sections_main, sections_mid, sections_last,
-                                                            sections_building_number)
+        if (len(sections_fir) > len(es_schema_fields_fir)
+                or len(sections_main) > len(es_schema_fields_main)
+                or len(sections_mid) > len(es_schema_fields_mid)
+                or len(sections_last) > len(es_schema_fields_last)):
+            log.error("分詞超过限制，地址: " + address_string)
+            return False, {}
 
+        # 生成查询参数
+        search_params = self.__create_address_search_params(sections_fir,
+                                                            sections_main,
+                                                            sections_mid,
+                                                            sections_last,
+                                                            sections_building_number)
         # 搜索
         succeed, result = self.__address_search(search_params)
 
@@ -353,7 +363,6 @@ class EsSearchService:
         """
         模糊匹配
         """
-
         search_list1 = list(sections_fir.values()) + list(sections_main.values()) + list(sections_mid.values())
         search_list2 = list(sections_fir.values()) + list(sections_main.values())
         search_list3 = list(sections_main.values())
@@ -525,5 +534,4 @@ class EsSearchService:
                 }
             }
         }
-
         return script
