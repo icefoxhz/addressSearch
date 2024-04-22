@@ -41,7 +41,10 @@ class AddressParseService:
         self._courtyard_chinese_words = ["期", "区"]
 
         # 新安花苑第二社区  =>  新安花苑2。 （新安花苑第二社区和新安花苑 都在字典表中，进行2次处理）
-        self._extract_again_chinese_words = ["期", "区", "社区"]
+        self._extract_again_chinese_words = ["社区", "期", "区"]
+
+        # 最后一个词满足条件，就删掉最后一个字。  "fir_3": "国道路" => "fir_3": "国道"
+        self._remove_last_words = ["道路"]
 
         # --------------------------------
         self._CONJUNCTION = "-"
@@ -617,6 +620,15 @@ class AddressParseService:
             if number > 0:
                 cut_words[i] = str(number)
 
+    def __last_process(self, section_first, section_main):
+        ls = [section_first, section_main]
+        for sect in ls:
+            for k, v in sect.items():
+                for word in self._remove_last_words:
+                    v = str(v)
+                    if v.endswith(word):
+                        sect[k] = v[:len(v) - 1]
+
     @staticmethod
     def findMainBodyIndexByDict(model: LAC, cut_words, only_in_dict_return=False):
         """
@@ -799,6 +811,9 @@ class AddressParseService:
                 or len(address_section_mid) > len(es_schema_fields_mid)
                 or len(address_section_last) > len(es_schema_fields_last)):
             return False, [None, None, None, None, None]
+
+        # 最后的处理
+        self.__last_process(address_section_first, address_section_main)
 
         self.__print("=== sections ===")
         self.__print(str(address_section_first) + str(address_section_main) + str(address_section_mid) +

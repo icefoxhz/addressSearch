@@ -17,6 +17,7 @@ SEARCH_SCORE_SCRIPT = {
             double all_value_count = 0.0;
     
             // =============== fir 算分， 每找到一个得5分
+            double fir_score = 0.0;
             int every_score_fir = 5;
             double found_count = 0.0;
             int query_value_length = params.query_value_fir.length;
@@ -31,7 +32,24 @@ SEARCH_SCORE_SCRIPT = {
                     }
                 }
             }
-            double fir_score = found_count * every_score_fir;
+            fir_score = found_count * every_score_fir;
+            
+            // fir要算减分项
+            double fir_score_de = 0.0;
+            //if (fir_score > 0) {
+                double containsFirKeyCount = 0.0;
+                for (int i = 0; i < query_field_length; i++) {
+                    if (doc.containsKey(params.query_fields_fir[i]) && doc[params.query_fields_fir[i]].size() > 0) {
+                        containsFirKeyCount += 1.0;
+                    }
+                }
+                
+                if (query_value_length < containsFirKeyCount){
+                    fir_score_de = (query_value_length - containsFirKeyCount) * every_score_fir;
+                }
+            //}
+            // -------------------------
+            
             all_found_count += found_count;
             all_value_count += query_value_length;
     
@@ -120,14 +138,17 @@ SEARCH_SCORE_SCRIPT = {
             double score = 0.0;
             if (all_value_count == all_found_count){
                 score = 100;
-                return score + mid_score_de + last_score_de;
+                return score + fir_score_de + mid_score_de + last_score_de;
             }
     
             score = base_score + fir_score + mid_score + last_score;
+            //if (score >= 100){
+            //    score = 100 * (all_value_count / all_found_count);
+            //}
             if (score >= 100){
-                score = 100 * (all_value_count / all_found_count);
+                score = 100;
             }
-    
+            score = score + fir_score_de + mid_score_de + last_score_de;
             return score;
         """
         }

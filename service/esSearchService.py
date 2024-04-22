@@ -151,11 +151,33 @@ class EsSearchService:
                             return succeed, result
         return False, {}
 
+    @staticmethod
+    def __real_succeed(score):
+        return score >= 70
+
     def run_address_search(self, address_string, is_participle_continue=False):
         succeed, result = self._run_address_search_not_by_thesaurus(address_string, is_participle_continue)
         # 还是未找到的話，使用同义词
         if not succeed:
             succeed, result = self._run_address_search_by_thesaurus(address_string)
+        return succeed, result
+
+    def run_address_search_by_score(self, address_string):
+        # 只要返回最高分数的那条
+        self._address_max_return = 1
+
+        succeed, result = self.run_address_search(address_string)
+        score = 0
+        if succeed:
+            score = result["score"]
+            succeed = self.__real_succeed(score)
+        if not succeed:
+            succeed2, result2 = self.run_address_search(address_string, True)
+            if succeed2:
+                score2 = result2["score"]
+                if score2 > score:
+                    result = result2
+                    succeed = succeed2
         return succeed, result
 
     def __create_address_search_params(self, sections_fir, sections_main, sections_mid, sections_last,

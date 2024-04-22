@@ -92,10 +92,7 @@ async def searchByAddress(request: Request):
     address_string = list(jsonRequest.values())[0]
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
-    succeed, result = esSearchService.run_address_search(address_string)
-    if not succeed:
-        succeed, result = esSearchService.run_address_search(address_string, True)
-
+    succeed, result = esSearchService.run_address_search_by_score(address_string)
     if succeed:
         await generate_user_result(result)
 
@@ -118,9 +115,7 @@ async def searchByAddressDev(request: Request):
     address_string = list(jsonRequest.values())[0]
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
-    succeed, result = esSearchService.run_address_search(address_string)
-    if not succeed:
-        succeed, result = esSearchService.run_address_search(address_string, True)
+    succeed, result = esSearchService.run_address_search_by_score(address_string)
 
     return _make_rest_result(key, result, "未找到" if not succeed else None)
 
@@ -142,9 +137,9 @@ async def searchByAddressEx(request: Request):
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     esSearchService.set_return_multi()
-    # succeed, result = esSearchService.run_address_search(address_string)
-    # if not succeed:
-    succeed, result = esSearchService.run_address_search(address_string, True)
+    succeed, result = esSearchService.run_address_search(address_string)
+    if not succeed:
+        succeed, result = esSearchService.run_address_search(address_string, True)
 
     return _make_rest_result(key, result, "未找到" if not succeed else None)
 
