@@ -145,3 +145,25 @@ class CommonTool:
         pattern = "[\u4e00-\u9fa5]"
         result = re.sub(pattern, symbol, input_string)
         return result
+
+    @staticmethod
+    def convert_building_num(building_num):
+        try:
+            building_num = str(building_num)
+            # 如果是数字
+            pattern = re.compile(r'^-?\d+(\.\d+)?$')
+            if bool(pattern.match(building_num)):
+                return int(building_num)
+
+            # 如果带字母，把字母转成 ascII码 + 1000 ，这里加1000是为了避免和正的楼栋号一样，正的楼栋号不可能超过1000
+            pattern = re.compile('^[a-zA-Z0-9]*$')
+            if bool(pattern.match(building_num)):
+                ascii_values = []
+                for char in building_num:
+                    if char.isalpha():  # 检查字符是否为英文字母
+                        ascii_values.append(str(ord(char) + 1000))
+                building_num = "".join(ascii_values)
+                return int(building_num)
+        except:
+            pass
+        return -99999

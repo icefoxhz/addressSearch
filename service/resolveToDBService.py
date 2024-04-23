@@ -24,6 +24,8 @@ class ResolveToDBService:
         "project.standard.x_field_name": "_x_field_name",
         "project.standard.y_field_name": "_y_field_name",
         "project.standard.address_field_name": "_address_field_name",
+        "project.big_region.region_field": "_region_field",
+        "project.big_region.street_field": "_street_field",
     })
     def __init__(self):
         # 自己注入自己，为了可以调用 Sync
@@ -45,6 +47,8 @@ class ResolveToDBService:
         self._address_table = None
         self._parsed_address_table = None
         self._thread_pool_max_size = None
+        self._region_field = None
+        self._street_field = None
 
     def __reduce__(self):
         # 在序列化过程中排除线程锁
@@ -101,6 +105,9 @@ class ResolveToDBService:
                     x = row[self._x_field_name]
                     y = row[self._y_field_name]
 
+                    region = row[self._region_field]
+                    street = row[self._street_field]
+
                     op_flag = row["op_flag"]
                     is_del = row["is_del"]
                     flag = int(op_flag) if op_flag is not None else 0
@@ -129,7 +136,7 @@ class ResolveToDBService:
                     # result = resultList[0]
 
                     address_parser = self._applicationContext.get_bean("addressParseService")
-                    succeed, section_fir, section_main, section_mid, section_last, section_build_number = address_parser.run(
+                    succeed, _, _, section_fir, section_main, section_mid, section_last, section_build_number = address_parser.run(
                         model, full_name, is_participle_continue)
                     if not succeed:
                         continue
@@ -142,6 +149,10 @@ class ResolveToDBService:
                         continue
 
                     result = section_fir | section_main | section_mid | section_last | section_build_number
+                    if region is not None:
+                        result["region"] = region
+                    if street is not None:
+                        result["street"] = street
 
                     # for result in resultList:
                     result["op_flag"] = flag

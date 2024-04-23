@@ -4,12 +4,14 @@ from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import
 
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
 from addressSearch.es.schemas import es_schema_fields_fir, es_schema_fields_main, es_schema_fields_mid, \
-    es_schema_field_building_number, es_fullname_field, es_schema_fields_last, schemaMain
+    es_schema_field_building_number, es_fullname_field, es_schema_fields_last, schemaMain, es_schema_fields_region, \
+    es_schema_fields_street
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.addressParseService import AddressParseService
 from addressSearch.service.configService import ConfigService
 from addressSearch.service.lacModelManageService import LacModelManageService
 from addressSearch.service.thesaurusService import ThesaurusService
+from addressSearch.utils.commonTool import CommonTool
 
 
 @Component
@@ -107,7 +109,7 @@ class EsSearchService:
 
         # 分词
         with self._lacModelManageService as model:
-            succeed, sections_fir, sections_main, sections_mid, sections_last, sections_building_number = self._addressParseService.run(
+            succeed, region, street, sections_fir, sections_main, sections_mid, sections_last, sections_building_number = self._addressParseService.run(
                 model, address_string, is_participle_continue)
 
         if not succeed or sections_main is None or len(sections_main) == 0:
@@ -122,7 +124,9 @@ class EsSearchService:
             return False, {}
 
         # 生成查询参数
-        search_params = self.__create_address_search_params(sections_fir,
+        search_params = self.__create_address_search_params(region,
+                                                            street,
+                                                            sections_fir,
                                                             sections_main,
                                                             sections_mid,
                                                             sections_last,
@@ -180,14 +184,17 @@ class EsSearchService:
                     succeed = succeed2
         return succeed, result
 
-    def __create_address_search_params(self, sections_fir, sections_main, sections_mid, sections_last,
+    def __create_address_search_params(self, region, street, sections_fir, sections_main, sections_mid, sections_last,
                                        sections_building_number):
         """
         生成搜索参数, 尝试多次搜索，每次都减少搜索条件，但是 main必须包含
         """
+        d_region = None
+        d_street = None
         d_fir = None
         d_main = None
-        d_mid = None
+        d_mid1 = None
+        d_mid2 = None
         d_last_all = None
         d_last_one = None
 
@@ -196,7 +203,29 @@ class EsSearchService:
         # # 评分函数
         # script = self._get_score_script(all_search_field_list, all_value_list)
 
-        script = self._get_score_script(sections_fir, sections_mid, sections_last)
+        script = self._get_score_script(region, street, sections_fir, sections_mid, sections_last)
+
+        if region is not None:
+            d_region = {"bool": {"should": [], "minimum_should_match": "100%"}}
+            d_region["bool"]["should"].append(
+                {
+                    "multi_match": {
+                        "query": region,
+                        "fields": [es_schema_fields_region]
+                    }
+                }
+            )
+
+        if street is not None:
+            d_street = {"bool": {"should": [], "minimum_should_match": "100%"}}
+            d_street["bool"]["should"].append(
+                {
+                    "multi_match": {
+                        "query": street,
+                        "fields": [es_schema_fields_street]
+                    }
+                }
+            )
 
         # 组织主体前部分的搜索
         if sections_fir is not None and len(sections_fir) > 0:
@@ -228,24 +257,40 @@ class EsSearchService:
         sections_mid_len = len(sections_mid)
         if sections_mid is not None and sections_mid_len > 0:
             if sections_mid_len == 1:
-                d_mid = {"bool": {"should": [], "minimum_should_match": "0%"}}
-                key = es_schema_fields_mid[0]
-                d_mid["bool"]["should"].append(
+                d_mid1 = {"bool": {"should": [], "minimum_should_match": "100%"}}
+                d_mid1["bool"]["should"].append(
                     {
                         "multi_match": {
-                            "query": sections_mid[key],
+                            "query": sections_building_number[es_schema_field_building_number],
                             "fields": es_schema_field_building_number
                         }
                     }
                 )
             else:
-                d_mid = {"bool": {"should": [], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
+                d_mid1 = {"bool": {"should": [], "minimum_should_match": "100%"}}  # 0% 是要求至少匹配一个
+                d_mid2 = {"bool": {"should": [], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
                 for field, val in sections_mid.items():
-                    d_mid["bool"]["should"].append(
+                    d_mid1["bool"]["should"].append(
                         {
                             "multi_match": {
-                                "query": str(val),
-                                "fields": es_schema_fields_mid
+                                "query": val,
+                                "fields":
+                                    es_schema_fields_mid + es_schema_fields_last
+                                    if not val.isdigit()  # 如果非纯数字就多查下 last
+                                    else
+                                    es_schema_fields_mid
+                            }
+                        }
+                    )
+                    d_mid2["bool"]["should"].append(
+                        {
+                            "multi_match": {
+                                "query": val,
+                                "fields":
+                                    es_schema_fields_mid + es_schema_fields_last
+                                    if not val.isdigit()  # 如果非纯数字就多查下 last
+                                    else
+                                    es_schema_fields_mid
                             }
                         }
                     )
@@ -255,7 +300,7 @@ class EsSearchService:
                 gte = val - self._build_number_tolerance
                 gte = gte if gte > 0 else 1
                 lte = val + self._build_number_tolerance
-                d_mid["bool"]["should"].append(
+                d_mid1["bool"]["should"].append(
                     {
                         "range": {
                             es_schema_field_building_number: {
@@ -268,13 +313,17 @@ class EsSearchService:
 
         # 最后部分
         if sections_last is not None and len(sections_last) > 0:
-            d_last_all = {"bool": {"should": [], "minimum_should_match": "100%"}}  # 0% 是要求至少匹配一个
+            d_last_all = {"bool": {"should": [], "minimum_should_match": "100%"}}
             for field, val in sections_last.items():
                 d_last_all["bool"]["should"].append(
                     {
                         "multi_match": {
                             "query": str(val),
-                            "fields": es_schema_fields_last
+                            "fields":
+                                es_schema_fields_mid + es_schema_fields_last
+                                if not val.isdigit()  # 如果非纯数字就多查下 last
+                                else
+                                es_schema_fields_last
                         }
                     })
 
@@ -290,24 +339,27 @@ class EsSearchService:
             ], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
 
         # 创建搜索组合
-        if d_fir is not None and d_mid is not None:
-            lss = [[d_fir, d_main, d_mid], [d_main, d_mid], [d_fir, d_main], [d_main]]
+        if d_fir is not None and d_mid1 is not None:
+            lss = [[d_fir, d_main, d_mid1], [d_fir, d_main, d_mid2], [d_main, d_mid1], [d_main, d_mid2],
+                   [d_fir, d_main], [d_main]]
             if d_last_all is not None:
-                lss = ([[d_fir, d_main, d_mid, d_last_all], [d_main, d_mid, d_last_all], [d_fir, d_main, d_last_all],
-                        [d_main, d_last_all]] +
-                       [[d_fir, d_main, d_mid, d_last_one], [d_main, d_mid, d_last_one], [d_fir, d_main, d_last_one],
+                lss = ([[d_fir, d_main, d_mid1, d_last_all], [d_fir, d_main, d_mid2, d_last_all],
+                        [d_main, d_mid1, d_last_all],
+                        [d_main, d_mid2, d_last_all], [d_fir, d_main, d_last_all], [d_main, d_last_all]] +
+                       [[d_fir, d_main, d_mid1, d_last_one], [d_fir, d_main, d_mid2, d_last_one],
+                        [d_main, d_mid1, d_last_one], [d_main, d_mid2, d_last_one], [d_fir, d_main, d_last_one],
                         [d_main, d_last_one]]
                        + lss)
-        elif d_fir is not None and d_mid is None:
+        elif d_fir is not None and d_mid1 is None:
             lss = [[d_fir, d_main], [d_main]]
             if d_last_all is not None:
                 lss = [[d_fir, d_main, d_last_all], [d_main, d_last_all]] + [[d_fir, d_main, d_last_one],
                                                                              [d_main, d_last_one]] + lss
-        elif d_fir is None and d_mid is not None:
-            lss = [[d_main, d_mid], [d_main]]
+        elif d_fir is None and d_mid1 is not None:
+            lss = [[d_main, d_mid1], [d_main, d_mid2], [d_main]]
             if d_last_all is not None:
-                lss = [[d_main, d_mid, d_last_all], [d_main, d_last_all]] + [[d_main, d_mid, d_last_one],
-                                                                             [d_main, d_last_one]] + lss
+                lss = [[d_main, d_mid1, d_last_all], [d_main, d_mid2, d_last_all], [d_main, d_last_all]] + [
+                    [d_main, d_mid1, d_last_one], [d_main, d_mid2, d_last_one], [d_main, d_last_one]] + lss
         else:
             lss = [[d_main]]
             if d_last_all is not None:
@@ -315,6 +367,11 @@ class EsSearchService:
 
         search_params = []
         for ls in lss:
+            if d_street is not None:
+                ls.insert(0, d_street)
+            if d_region is not None:
+                ls.insert(0, d_region)
+
             search_param = {
                 "query": {
                     "function_score": {
@@ -532,7 +589,7 @@ class EsSearchService:
         }
         return script
 
-    def _get_score_script(self, sections_fir, sections_mid, sections_last):
+    def _get_score_script(self, region, street, sections_fir, sections_mid, sections_last):
         if sections_fir is None:
             sections_fir = {}
         if sections_mid is None:
@@ -545,6 +602,10 @@ class EsSearchService:
                 "script": {
                     "id": self._score_script_id,
                     "params": {
+                        "region_field": "region",
+                        "region_value": region if region is not None else "",
+                        "street_field": "street",
+                        "street_value": street if street is not None else "",
                         "query_fields_fir": es_schema_fields_fir,
                         "query_fields_mid": es_schema_fields_mid,
                         "query_fields_last": es_schema_fields_last,

@@ -1,5 +1,6 @@
 import copy
 import re
+import threading
 
 import jieba
 from LAC import LAC
@@ -13,6 +14,8 @@ from addressSearch.utils.commonTool import CommonTool
 
 @Component
 class AddressParseService:
+    __local_obj = threading.local()
+
     @Value({
         "project.print_debug": "_print_debug",
         "project.big_region.province": "_provinces",
@@ -35,9 +38,17 @@ class AddressParseService:
         self._common_symbol = ["·"]
 
         # --------------------------------
+        # 特殊楼栋判断。  震泽路18号B座狮子座
+        # self._special_building_chinese_words = ["狮子座", "巨蟹座", "双子座", "白羊座", "金牛座", "射手座", "水瓶座",
+        #                                         "处女座", "凤凰座", "海豚座", "鲸鱼座",  "天蝎座", "摩羯座", "双鱼座",
+        #                                         "天鹅座", "飞鱼座", "杜鹃座", ]
+        self._special_building_chinese_words = []
+
+        # 通用楼栋判断
         self._building_chinese_words = ["幢", "栋", "号楼", "楼", "座",
                                         "号厂区", "号东厂区", "号南厂区", "号西厂区", "号北厂区",
                                         ]
+
         self._courtyard_chinese_words = ["期", "区"]
 
         # 新安花苑第二社区  =>  新安花苑2。 （新安花苑第二社区和新安花苑 都在字典表中，进行2次处理）
@@ -87,7 +98,7 @@ class AddressParseService:
         """
         try:
             if not self.acceptAddress(addr_string):
-                return False, None, None, None, None, None
+                return False, None, None, None, None, None, None, None
 
             addr_string = self.removeStartWordsIfNecessary(addr_string)
             addr_string = self.removeExtra(addr_string)
@@ -103,12 +114,12 @@ class AddressParseService:
                 self.__print("二次分词结果: " + str(cut_list))
 
             if cut_list is None:
-                return False, None, None, None, None, None
+                return False, None, None, None, None, None, None, None
 
             # 找主体
             body_idx = self.findMainBodyIndex(model, addr_string, cut_list)
             if body_idx == -1:
-                return False, None, None, None, None, None
+                return False, None, None, None, None, None, None, None
             # 处理并生成 sections
             succeed, [address_section_first, address_section_main, address_section_mid, address_section_last,
                       address_section_build_number] = self.create_sections(
@@ -119,16 +130,22 @@ class AddressParseService:
                 # 找主体
                 body_idx = self.findMainBodyIndexReverse(model, addr_string, cut_list)
                 if body_idx == -1:
-                    return False, None, None, None, None, None
+                    return False, None, None, None, None, None, None, None
                 # 处理并生成 sections
                 succeed, [address_section_first, address_section_main, address_section_mid, address_section_last,
                           address_section_build_number] = self.create_sections(
                     cut_list, body_idx, model, last_string)
 
-            return succeed, address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number
+            region = self.__local_obj.region if hasattr(self.__local_obj, "region") else None
+            street = self.__local_obj.street if hasattr(self.__local_obj, "street") else None
+
+            return succeed, region, street, address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number
         except Exception as e:
             self.__print(str(e))
-            return False, None, None, None, None, None
+            return False, None, None, None, None, None, None, None
+        finally:
+            self.__local_obj.region = None
+            self.__local_obj.street = None
 
     def participleContinue(self, model: LAC, cut_list):
         word_list = cut_list[0]
@@ -202,11 +219,23 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
-        remove_list = [self._provinces, self._cities, self._regions, self._streets]
+        remove_list = [self._provinces, self._cities]
         for remove_words in remove_list:
             for remove_word in remove_words:
                 if addr_string.startswith(remove_word):
                     addr_string = addr_string.replace(remove_word, "", 1)
+
+        for remove_word in self._regions:
+            if addr_string.startswith(remove_word):
+                self.__local_obj.region = remove_word
+                addr_string = addr_string.replace(remove_word, "", 1)
+                break
+
+        for remove_word in self._streets:
+            if addr_string.startswith(remove_word):
+                self.__local_obj.street = remove_word
+                addr_string = addr_string.replace(remove_word, "", 1)
+                break
 
         return addr_string
 
@@ -365,7 +394,15 @@ class AddressParseService:
         addr_string_copy = copy.deepcopy(addr_string)
         cut_succeed = False
         find_result = None
-        # 1. 根据中文标识符判断
+
+        # 1. 根据中文标识符判断 (特殊标识)
+        for symbol in self._special_building_chinese_words:
+            find_idx = addr_string.find(symbol)
+            if find_idx > 0:
+                find_idx += len(symbol)
+                return True, addr_string[:find_idx], addr_string[find_idx:]
+
+        # 2. 根据中文标识符判断 (通用标识)
         for symbol in self._building_chinese_words:
             # if cut_succeed:
             #     break
@@ -799,7 +836,9 @@ class AddressParseService:
             try:
                 # 如果只有1个值，就是 mid_1 ,  如果有2个值，就是 mid_2
                 key_name = "mid_" + str(len(address_section_mid))
-                address_section_build_number[es_schema_field_building_number] = int(address_section_mid[key_name])
+                building_num = address_section_mid[key_name]
+                building_num = CommonTool.convert_building_num(building_num)
+                address_section_build_number[es_schema_field_building_number] = building_num
             except:
                 pass
 
@@ -820,3 +859,6 @@ class AddressParseService:
                      str(address_section_last) + str(address_section_build_number))
         return True, [address_section_first, address_section_main, address_section_mid, address_section_last,
                       address_section_build_number]
+
+
+

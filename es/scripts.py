@@ -12,14 +12,30 @@ SEARCH_SCORE_SCRIPT = {
         "lang": "painless",
         "source": """
             // 能进入这里的都是找到主体的，给个基础分
-            double base_score = 50;
+            double base_score = 40;
             double all_found_count = 0.0;
             double all_value_count = 0.0;
-    
+            
+            // ============= 区 (只参与减分)
+            double de_region_score = 0.0;
+            if (doc.containsKey(params.region_field) && doc[params.region_field].size() > 0){
+                if (params.region_value != doc[params.region_field].value){
+                    de_region_score = -5.0;
+                }
+            }
+            
+            // ==============街道 (只参与减分)
+            double de_street_score = 0.0;
+            if (doc.containsKey(params.street_field) && doc[params.street_field].size() > 0){
+                if (params.street_value != doc[params.street_field].value){
+                    de_street_score = -5.0;
+                }
+            }
+            
             // =============== fir 算分， 每找到一个得5分
             double fir_score = 0.0;
-            int every_score_fir = 5;
             double found_count = 0.0;
+            int every_score_fir = 5;
             int query_value_length = params.query_value_fir.length;
             int query_field_length = params.query_fields_fir.length;
             for (int i = 0; i < query_field_length; i++) {
@@ -60,6 +76,7 @@ SEARCH_SCORE_SCRIPT = {
             found_count = 0.0;
             query_value_length = params.query_value_mid.length;
             query_field_length = params.query_fields_mid.length;
+            // 第1个位置的值必须一一对应
             if (query_value_length == 1) {
                 String mid_val = params.query_value_mid[0];
                 if (doc[params.query_field_building_number].value == Integer.parseInt(mid_val)) {
@@ -70,13 +87,24 @@ SEARCH_SCORE_SCRIPT = {
             // 如果有多于1个值
             if (query_value_length > 1) {
                 int avg_score = MID_ALL_SCORE / query_value_length;
-                for (int i = 0; i < query_value_length; i++) {
+                
+                // 第1个位置mid_1的值必须对应
+                if (doc[params.query_fields_mid[0]].value == params.query_value_mid[0]) {
+                    found_count += 1;
+                }
+                
+                // 后面几个位置任意匹配
+                for (int i = 1; i < query_field_length; i++) {
                     if (doc.containsKey(params.query_fields_mid[i]) && doc[params.query_fields_mid[i]].size() > 0) {
-                         if (doc[params.query_fields_mid[i]].value == params.query_value_mid[i]) {
-                            found_count += 1;
-                         }
+                        for (int j = 1; j < query_value_length; j++) {
+                            if (doc[params.query_fields_mid[i]].value == params.query_value_mid[j]) {
+                                found_count += 1;
+                                break;
+                            }
+                        }
                     }
                 }
+                                
                 mid_score =  avg_score * found_count;
             }
             
@@ -138,18 +166,13 @@ SEARCH_SCORE_SCRIPT = {
             double score = 0.0;
             if (all_value_count == all_found_count){
                 score = 100;
-                return score + fir_score_de + mid_score_de + last_score_de;
+            }else{
+                score = base_score + fir_score + mid_score + last_score;
+                if (score >= 100){
+                    score = 100;
+                }
             }
-    
-            score = base_score + fir_score + mid_score + last_score;
-            //if (score >= 100){
-            //    score = 100 * (all_value_count / all_found_count);
-            //}
-            if (score >= 100){
-                score = 100;
-            }
-            score = score + fir_score_de + mid_score_de + last_score_de;
-            return score;
+            return (int)score + de_region_score + de_street_score + fir_score_de + mid_score_de + last_score_de;
         """
         }
     }
