@@ -148,9 +148,9 @@ class CommonTool:
         return result
 
     @staticmethod
-    def hash_to_int(number, max_int):
-        # 使用模运算将任何数字映射到0-max_int-1之间
-        return abs(hash(number)) % max_int
+    def hash_to_int(number, max_val):
+        # 使用模运算将任何数字映射到 0 - max_val-1 之间
+        return abs(hash(number)) % max_val
 
     @staticmethod
     def convert_building_num(building_num):
@@ -161,13 +161,22 @@ class CommonTool:
             if bool(pattern.match(building_num)):
                 return int(building_num)
 
-            # 如果带字母，把字母转成 ascII码 + 1000 ，这里加1000是为了避免和正的楼栋号一样，正的楼栋号不可能超过1000
+            # 带字母的
             pattern = re.compile('^[a-zA-Z0-9]*$')
             if bool(pattern.match(building_num)):
+                en_count = 0
+                for char in building_num:
+                    if char.isalpha():  # 检查字符是否为英文字母
+                        en_count += 1
+
                 ascii_values = []
                 for char in building_num:
                     if char.isalpha():  # 检查字符是否为英文字母
-                        ascii_values.append(str(ord(char) + 1000))
+                        if en_count == 1:
+                            # 如果带字母，且只有1个字母。把字母转成 ascII码 + 1000 ，这里加1000是为了避免和正的楼栋号一样，正的楼栋号不可能超过1000
+                            ascii_values.append(str(ord(char) + 1000))
+                        else:
+                            ascii_values.append(str(ord(char)))
                     else:
                         ascii_values.append(char)
                 building_num = "".join(ascii_values)
