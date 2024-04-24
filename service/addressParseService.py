@@ -251,6 +251,8 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
+        addr_string = addr_string.strip()
+
         # 1.
         for extra_ls in self._extra_symbols:
             start_symbol = extra_ls[0]
@@ -847,7 +849,7 @@ class AddressParseService:
             address_section_mid[field_name] = cut_words[i]
             idx += 1
 
-        address_section_build_number = {es_schema_field_building_number: -99999}
+        address_section_build_number = {es_schema_field_building_number: 0}
         if len(address_section_mid) > 0:
             try:
                 # 如果只有1个值，就是 mid_1 ,  如果有2个值，就是 mid_2

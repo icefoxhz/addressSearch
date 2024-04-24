@@ -43,7 +43,8 @@ es_schema_fields_last = ["last_1", "last_2", "last_3", "last_4", "last_5", "last
 es_schema_field_building_number = "building_number"
 es_fullname_field = "fullname"
 es_schema_fields = (
-        [es_schema_fields_region, es_schema_fields_street] +
+        [es_schema_fields_region, es_schema_fields_street]
+        +
         [es_fullname_field]
         +
         es_schema_fields_fir
@@ -57,6 +58,6 @@ es_schema_fields = (
 
 for field in es_schema_fields:
     add_schema_field(schemaMain, field)
-add_schema_field_ex(schemaMain, es_schema_field_building_number, "integer")
+add_schema_field_ex(schemaMain, es_schema_field_building_number, "long")
 
 # print("schemaMain: ", schemaMain)

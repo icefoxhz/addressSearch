@@ -263,7 +263,7 @@ class EsSearchService:
                     {
                         "multi_match": {
                             "query": sections_building_number[es_schema_field_building_number],
-                            "fields": es_schema_field_building_number
+                            "fields": [es_schema_field_building_number]
                         }
                     }
                 )
@@ -297,11 +297,11 @@ class EsSearchService:
                     )
 
             val = sections_building_number[es_schema_field_building_number]
-            if val >= 0:
+            if val >= 0 and d_mid2 is not None:
                 gte = val - self._build_number_tolerance
                 gte = gte if gte > 0 else 1
                 lte = val + self._build_number_tolerance
-                d_mid1["bool"]["should"].append(
+                d_mid2["bool"]["should"].append(
                     {
                         "range": {
                             es_schema_field_building_number: {
@@ -355,11 +355,11 @@ class EsSearchService:
             [d_region, d_street, d_fir, d_main],
             [d_region, d_street, d_fir, d_main]
         ]
-
         # 去掉None
         for i in range(len(lss)):
             lss[i] = list(filter(lambda x: x is not None, lss[i]))
 
+        # 组织查询参数
         search_params = []
         for ls in lss:
             search_param = {

@@ -89,14 +89,14 @@ class ResolveToDBService:
     def do_run(self, df, is_participle_continue=False, progress_bar=None):
         with (self._lacModelManageService as model):
             do_count = 0
+            ids_insert = []
+            ids_update = []
+            ids_delete = []
+
+            data_insert = []
+            data_modify = []
+
             try:
-                ids_insert = []
-                ids_update = []
-                ids_delete = []
-
-                data_insert = []
-                data_modify = []
-
                 for _, row in df.iterrows():
                     full_name = row[self._address_field_name]
                     if full_name is None or full_name == "":
@@ -192,6 +192,10 @@ class ResolveToDBService:
                         self._addressMapping.set_delete_and_waiting_completed(self._address_table, tId)
             except Exception as e:
                 log.error("ResolveToDBService do_run => " + str(e))
+                ls = []
+                for data in data_insert:
+                    ls.append(data[self._ID_FIELD_NAME])
+                log.error("ResolveToDBService do_run => " + str(ls))
 
         if progress_bar is not None:
             progress_bar.update(do_count)

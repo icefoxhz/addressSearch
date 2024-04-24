@@ -4,6 +4,7 @@ import datetime
 
 
 class CommonTool:
+    ES_LONG_MAX = 9223372036854775807
 
     @staticmethod
     def has_chinese_characters(s):
@@ -147,6 +148,11 @@ class CommonTool:
         return result
 
     @staticmethod
+    def hash_to_int(number, max_int):
+        # 使用模运算将任何数字映射到0-max_int-1之间
+        return abs(hash(number)) % max_int
+
+    @staticmethod
     def convert_building_num(building_num):
         try:
             building_num = str(building_num)
@@ -165,7 +171,11 @@ class CommonTool:
                     else:
                         ascii_values.append(char)
                 building_num = "".join(ascii_values)
-                return int(building_num)
+                building_num = int(building_num)
+                # hash，最大值为es中Long类型的最大值
+                if building_num > CommonTool.ES_LONG_MAX:
+                    building_num = CommonTool.hash_to_int(building_num, CommonTool.ES_LONG_MAX)
+                return building_num
         except:
             pass
-        return -99999
+        return 0

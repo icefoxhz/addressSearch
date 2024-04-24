@@ -78,7 +78,7 @@ SEARCH_SCORE_SCRIPT = {
             query_field_length = params.query_fields_mid.length;
             // 第1个位置的值必须一一对应
             if (query_value_length == 1) {
-                int building_number = params.query_value_building_number;
+                long building_number = params.query_value_building_number;
                 if (doc[params.query_field_building_number].value == building_number) {
                     mid_score =  MID_ALL_SCORE;
                     found_count += 1;
