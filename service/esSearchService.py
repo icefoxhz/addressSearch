@@ -22,6 +22,7 @@ class EsSearchService:
         "project.blur_search": "_blur_search",
         "project.score_script_id": "_score_script_id",
         "project.local_config.address_max_return": "_address_max_return",
+        "project.big_region.multi_region": "_multi_region",
     })
     def __init__(self):
         self._print_debug = False
@@ -42,6 +43,7 @@ class EsSearchService:
         self._address_max_return = 20
         self._return_multi = False
         self._es_cli = None
+        self._multi_region = False
         self._build_number_tolerance = 10  # 前后n栋的来去
 
     def _after_init(self):
@@ -174,14 +176,12 @@ class EsSearchService:
         score = 0
         if succeed:
             score = result["score"]
-            succeed = self.__real_succeed(score)
-        if not succeed:
+        if not self.__real_succeed(score):
             succeed2, result2 = self.run_address_search(address_string, True)
             if succeed2:
                 score2 = result2["score"]
                 if score2 > score:
                     result = result2
-                    succeed = succeed2
         return succeed, result
 
     def __create_address_search_params(self, region, street, sections_fir, sections_main, sections_mid, sections_last,
@@ -203,7 +203,8 @@ class EsSearchService:
         # # 评分函数
         # script = self._get_score_script(all_search_field_list, all_value_list)
 
-        script = self._get_score_script(region, street, sections_fir, sections_mid, sections_last)
+        script = self._get_score_script(region, street, sections_fir, sections_mid, sections_last,
+                                        sections_building_number[es_schema_field_building_number])
 
         if region is not None:
             d_region = {"bool": {"should": [], "minimum_should_match": "100%"}}
@@ -234,7 +235,7 @@ class EsSearchService:
                 d_fir["bool"]["should"].append(
                     {
                         "multi_match": {
-                            "query": str(val),
+                            "query": val,
                             # 只找前面5個，定義大于5個是為了容錯的
                             "fields": [es_schema_fields_fir[i] for i in range(5)]
                         }
@@ -248,7 +249,7 @@ class EsSearchService:
                 d_main["bool"]["should"].append(
                     {
                         "multi_match": {
-                            "query": str(val),
+                            "query": val,
                             "fields": es_schema_fields_main
                         }
                     })
@@ -318,7 +319,7 @@ class EsSearchService:
                 d_last_all["bool"]["should"].append(
                     {
                         "multi_match": {
-                            "query": str(val),
+                            "query": val,
                             "fields":
                                 es_schema_fields_mid + es_schema_fields_last
                                 if not val.isdigit()  # 如果非纯数字就多查下 last
@@ -329,49 +330,38 @@ class EsSearchService:
 
             # 只搜 last_1 的值
             f = es_schema_fields_last[0]
+            val = sections_last[f]
             d_last_one = {"bool": {"should": [
                 {
                     "multi_match": {
-                        "query": sections_last[f],
-                        "fields": es_schema_fields_last
+                        "query": val,
+                        "fields":
+                            es_schema_fields_mid + es_schema_fields_last
+                            if not val.isdigit()  # 如果非纯数字就多查下 last
+                            else
+                            es_schema_fields_last
                     }
                 }
             ], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
 
-        # 创建搜索组合
-        if d_fir is not None and d_mid1 is not None:
-            lss = [[d_fir, d_main, d_mid1], [d_fir, d_main, d_mid2], [d_main, d_mid1], [d_main, d_mid2],
-                   [d_fir, d_main], [d_main]]
-            if d_last_all is not None:
-                lss = ([[d_fir, d_main, d_mid1, d_last_all], [d_fir, d_main, d_mid2, d_last_all],
-                        [d_main, d_mid1, d_last_all],
-                        [d_main, d_mid2, d_last_all], [d_fir, d_main, d_last_all], [d_main, d_last_all]] +
-                       [[d_fir, d_main, d_mid1, d_last_one], [d_fir, d_main, d_mid2, d_last_one],
-                        [d_main, d_mid1, d_last_one], [d_main, d_mid2, d_last_one], [d_fir, d_main, d_last_one],
-                        [d_main, d_last_one]]
-                       + lss)
-        elif d_fir is not None and d_mid1 is None:
-            lss = [[d_fir, d_main], [d_main]]
-            if d_last_all is not None:
-                lss = [[d_fir, d_main, d_last_all], [d_main, d_last_all]] + [[d_fir, d_main, d_last_one],
-                                                                             [d_main, d_last_one]] + lss
-        elif d_fir is None and d_mid1 is not None:
-            lss = [[d_main, d_mid1], [d_main, d_mid2], [d_main]]
-            if d_last_all is not None:
-                lss = [[d_main, d_mid1, d_last_all], [d_main, d_mid2, d_last_all], [d_main, d_last_all]] + [
-                    [d_main, d_mid1, d_last_one], [d_main, d_mid2, d_last_one], [d_main, d_last_one]] + lss
-        else:
-            lss = [[d_main]]
-            if d_last_all is not None:
-                lss = [[d_main, d_last_all]] + [[d_main, d_last_one]] + lss
+        # 创建搜索顺序组合
+        lss = [
+            [d_region, d_street, d_fir, d_main, d_mid1, d_last_all],
+            [d_region, d_street, d_fir, d_main, d_mid2, d_last_one],
+            [d_region, d_street, d_fir, d_main, d_mid1],
+            [d_region, d_street, d_fir, d_main, d_mid2],
+            [d_region, d_street, d_fir, d_main, d_last_all],
+            [d_region, d_street, d_fir, d_main, d_last_one],
+            [d_region, d_street, d_fir, d_main],
+            [d_region, d_street, d_fir, d_main]
+        ]
+
+        # 去掉None
+        for i in range(len(lss)):
+            lss[i] = list(filter(lambda x: x is not None, lss[i]))
 
         search_params = []
         for ls in lss:
-            if d_street is not None:
-                ls.insert(0, d_street)
-            if d_region is not None:
-                ls.insert(0, d_region)
-
             search_param = {
                 "query": {
                     "function_score": {
@@ -589,7 +579,7 @@ class EsSearchService:
         }
         return script
 
-    def _get_score_script(self, region, street, sections_fir, sections_mid, sections_last):
+    def _get_score_script(self, region, street, sections_fir, sections_mid, sections_last, building_number):
         if sections_fir is None:
             sections_fir = {}
         if sections_mid is None:
@@ -602,6 +592,7 @@ class EsSearchService:
                 "script": {
                     "id": self._score_script_id,
                     "params": {
+                        "multi_region": 1 if self._multi_region else 0,
                         "region_field": "region",
                         "region_value": region if region is not None else "",
                         "street_field": "street",
@@ -610,6 +601,7 @@ class EsSearchService:
                         "query_fields_mid": es_schema_fields_mid,
                         "query_fields_last": es_schema_fields_last,
                         "query_field_building_number": es_schema_field_building_number,
+                        "query_value_building_number": building_number,
                         "query_value_fir": list(sections_fir.values()),
                         "query_value_mid": list(sections_mid.values()),
                         "query_value_last": list(sections_last.values())

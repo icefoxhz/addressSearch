@@ -12,8 +12,8 @@ SEARCH_SCORE_SCRIPT = {
         "lang": "painless",
         "source": """
             // 能进入这里的都是找到主体的，给个基础分
-            double base_score = 40;
-            double all_found_count = 0.0;
+            double base_score = 50;
+            double all_found_count = 0.0;  
             double all_value_count = 0.0;
             
             // ============= 区 (只参与减分)
@@ -78,8 +78,8 @@ SEARCH_SCORE_SCRIPT = {
             query_field_length = params.query_fields_mid.length;
             // 第1个位置的值必须一一对应
             if (query_value_length == 1) {
-                String mid_val = params.query_value_mid[0];
-                if (doc[params.query_field_building_number].value == Integer.parseInt(mid_val)) {
+                int building_number = params.query_value_building_number;
+                if (doc[params.query_field_building_number].value == building_number) {
                     mid_score =  MID_ALL_SCORE;
                     found_count += 1;
                 }
@@ -104,8 +104,11 @@ SEARCH_SCORE_SCRIPT = {
                         }
                     }
                 }
-                                
-                mid_score =  avg_score * found_count;
+                if (found_count == query_value_length){
+                    mid_score = MID_ALL_SCORE;
+                }else{
+                    mid_score =  avg_score * found_count;
+                }
             }
             
             // mid要算减分项
@@ -172,7 +175,13 @@ SEARCH_SCORE_SCRIPT = {
                     score = 100;
                 }
             }
-            return (int)score + de_region_score + de_street_score + fir_score_de + mid_score_de + last_score_de;
+            //return (int)all_found_count;
+            
+            int multi_region = params.multi_region;
+            if (multi_region == 1){
+                return (int)score + de_region_score + de_street_score + fir_score_de + mid_score_de + last_score_de;
+            }
+            return (int)score + fir_score_de + mid_score_de + last_score_de;
         """
         }
     }

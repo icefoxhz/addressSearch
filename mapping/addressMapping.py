@@ -8,9 +8,17 @@ class AddressMapping:
     def get_address_data(self, table, page_size, offset):
         pass
 
+    # @Select("SELECT * FROM ( SELECT t.*, ROWNUM as rn FROM ( SELECT * FROM #{table} ORDER BY id ) t ) WHERE rn BETWEEN #{start_row} AND #{end_row}")
+    # def get_address_data_oracle(self, table, start_row, end_row):
+    #     pass
+
     @Select("select * from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
     def get_parsed_data(self, table, page_size, offset):
         pass
+
+    # @Select("SELECT * FROM ( SELECT t.*, ROWNUM as rn FROM ( SELECT * FROM #{table} ORDER BY id ) t ) WHERE rn BETWEEN #{start_row} AND #{end_row}")
+    # def get_parsed_data_oracle(self, table, start_row, end_row):
+    #     pass
 
     @Delete("truncate table #{table}")
     def truncate_table(self, table):

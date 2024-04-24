@@ -162,6 +162,8 @@ class CommonTool:
                 for char in building_num:
                     if char.isalpha():  # 检查字符是否为英文字母
                         ascii_values.append(str(ord(char) + 1000))
+                    else:
+                        ascii_values.append(char)
                 building_num = "".join(ascii_values)
                 return int(building_num)
         except:

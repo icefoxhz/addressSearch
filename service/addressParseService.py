@@ -66,7 +66,13 @@ class AddressParseService:
                                      "东侧", "南侧", "西侧", "北侧",
                                      ]
 
-        self._conjunction_re_patterns_get_front = [r'向(.*?)米',
+        self._conjunction_re_patterns_get_front = [r'正(.*?)方向(.*?)米',
+                                                   r'斜(.*?)方向(.*?)米',
+                                                   r'东(.*?)方向(.*?)米',
+                                                   r'西(.*?)方向(.*?)米',
+                                                   r'南(.*?)方向(.*?)米',
+                                                   r'北(.*?)方向(.*?)米',
+                                                   r'向(.*?)米',
                                                    r'东(.*?)米',
                                                    r'西(.*?)米',
                                                    r'南(.*?)米',
@@ -284,6 +290,8 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
+        ret_succeed = False
+        ret_last_string = ""
 
         # 交叉口这种先处理一下, 这步总是要处理
         _, addr_string = self.__cutToBuildingByJoinRePatterns(model,
@@ -292,17 +300,25 @@ class AddressParseService:
                                                               get_front=False)
 
         cut_succeed, addr_string, last_string = self.__cutToBuildingByChineseWords(addr_string)
+        if cut_succeed:
+            ret_succeed = cut_succeed
+        if last_string is not None:
+            ret_last_string = last_string + ret_last_string
 
-        if not cut_succeed:
-            cut_succeed, addr_string, last_string = self.__cutToBuildingByJoinSymbols(model, addr_string)
+        cut_succeed, addr_string = self.__cutToBuildingByJoinRePatterns(model,
+                                                                        addr_string,
+                                                                        self._conjunction_re_patterns_get_front,
+                                                                        get_front=True)
+        if cut_succeed:
+            ret_succeed = cut_succeed
 
-        if not cut_succeed:
-            cut_succeed, addr_string = self.__cutToBuildingByJoinRePatterns(model,
-                                                                            addr_string,
-                                                                            self._conjunction_re_patterns_get_front,
-                                                                            get_front=True)
+        cut_succeed, addr_string, last_string = self.__cutToBuildingByJoinSymbols(model, addr_string)
+        if cut_succeed:
+            ret_succeed = cut_succeed
+        if last_string is not None:
+            ret_last_string = last_string + ret_last_string
 
-        return cut_succeed, addr_string, last_string
+        return ret_succeed, addr_string, ret_last_string
 
     def __getCourtyardNumberByChineseWords(self, addr_string: str):
         """
@@ -859,6 +875,3 @@ class AddressParseService:
                      str(address_section_last) + str(address_section_build_number))
         return True, [address_section_first, address_section_main, address_section_mid, address_section_last,
                       address_section_build_number]
-
-
-
