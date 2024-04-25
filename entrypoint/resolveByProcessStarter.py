@@ -40,13 +40,21 @@ class ServiceApplication(ApplicationStarter):
         parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
         self._address_mapping.truncate_table(parsed_address_table)
 
-    def get_address_data_count(self):
-        data = self._address_mapping.get_data_count(self._address_table)
-        return data.iloc[0, 0]
+    # def get_address_data_count(self):
+    #     data = self._address_mapping.get_data_count(self._address_table)
+    #     return data.iloc[0, 0]
+
+    def get_address_data_limit(self, limit_size):
+        data = self._address_mapping.get_address_data_limit(self._address_table, limit_size)
+        return data
 
     def get_parsed_address_data_count(self):
         data = self._address_mapping.get_data_count(self._address_parsed_table)
         return data.iloc[0, 0]
+
+    def get_parsed_address_limit(self, limit_size):
+        data = self._address_mapping.get_parsed_data_limit(self._address_parsed_table, limit_size)
+        return data
 
     def set_all_waiting_completed(self):
         # 防止 flag=8的没更新， 每次启动先把 flag=8 的更新成 9
@@ -60,9 +68,14 @@ class ServiceApplication(ApplicationStarter):
         service = self.application_context.get_bean("resolveToDBService")
         service.start_by_process(start_row, end_row)
 
+    def do_parse_table_limit(self, df):
+        service = self.application_context.get_bean("resolveToDBService")
+        service.start_by_process_df(df)
+
     def do_post_to_es(self):
         service = self.application_context.get_bean("postDataToEsService")
-        service.start_by_thread()
+        # service.start_by_thread()
+        service.start_by_thread_df()
 
     def main(self):
         self._application_environment = self.application_context.get_bean("applicationEnvironment")
@@ -78,52 +91,31 @@ def task_parse(start_row, end_row):
     app.do_parse_table(start_row, end_row)
 
 
-def parse_process(app):
-    data_count = app.get_address_data_count()
-    if data_count == 0:
-        return data_count
-
-    executorTaskManager = app.application_context.get_bean("executorTaskManager")
-    process_count = executorTaskManager.core_num
-
-    applicationEnvironment = app.application_context.get_bean("applicationEnvironment")
-    min_size = applicationEnvironment.get("project.tables.batch_size")
-
-    # min_size = 500
-    if data_count > process_count * min_size:
-        batch_size = int(data_count / process_count)
-        if data_count % process_count != 0:
-            process_count += 1
-    else:
-        batch_size = int(data_count)
-        process_count = 1
-
-    for i in range(process_count):
-        start = i * batch_size
-        end = start + batch_size
-        # print(start, end)
-        executorTaskManager.submit(task_parse, True, None, start, end)
-    executorTaskManager.wait_completed()
-    return data_count
+def task_parse_limit(df):
+    app = ServiceApplication()
+    app.run()
+    app.do_parse_table_limit(df)
 
 
 # def parse_process(app):
 #     data_count = app.get_address_data_count()
 #     if data_count == 0:
-#         return
+#         return data_count
 #
 #     executorTaskManager = app.application_context.get_bean("executorTaskManager")
 #     process_count = executorTaskManager.core_num
 #
-#     min_batch = 50
-#     if data_count <= min_batch * process_count:
-#         process_count = int(data_count / min_batch if data_count % min_batch == 0 else data_count / min_batch + 1)
-#         process_count = 1 if process_count == 0 else process_count
-#         batch_size = int(data_count / process_count + 1)  # 直接 + 1 省的判断了
+#     applicationEnvironment = app.application_context.get_bean("applicationEnvironment")
+#     min_size = applicationEnvironment.get("project.tables.batch_size")
+#
+#     # min_size = 500
+#     if data_count > process_count * min_size:
+#         batch_size = int(data_count / process_count)
+#         if data_count % process_count != 0:
+#             process_count += 1
 #     else:
-#         batch_size = data_count / process_count
-#         batch_size = int(batch_size if data_count % process_count == 0 else batch_size + 1)
-#     # app.truncate_address_table()
+#         batch_size = int(data_count)
+#         process_count = 1
 #
 #     for i in range(process_count):
 #         start = i * batch_size
@@ -131,6 +123,32 @@ def parse_process(app):
 #         # print(start, end)
 #         executorTaskManager.submit(task_parse, True, None, start, end)
 #     executorTaskManager.wait_completed()
+#     return data_count
+
+
+def parse_process_limit(app):
+    executorTaskManager = app.application_context.get_bean("executorTaskManager")
+    process_count = executorTaskManager.core_num
+
+    applicationEnvironment = app.application_context.get_bean("applicationEnvironment")
+    min_size = applicationEnvironment.get("project.tables.batch_size")
+
+    limit_size = process_count * min_size
+
+    data = app.get_address_data_limit(limit_size * 20)
+    data_count = len(data)
+    if data_count == 0:
+        return data_count
+
+    if data_count <= limit_size:
+        process_count = 1
+
+    ls_df = CommonTool.split_dataframe(data, process_count)
+    for df in ls_df:
+        # print(start, end)
+        executorTaskManager.submit(task_parse_limit, True, None, df)
+    executorTaskManager.wait_completed()
+    return data_count
 
 
 def post_to_es(app):
@@ -143,7 +161,6 @@ def post_to_es(app):
 
 if __name__ == '__main__':
     # freeze_support()  # pyinstaller 打包后的进程支持，必须加，不然无法使用进程
-
     print("root_model_path=", root_model_path)
 
     serviceApplication = ServiceApplication()
@@ -152,17 +169,24 @@ if __name__ == '__main__':
     serviceApplication.clearLacCustomDict()
     serviceApplication.set_all_waiting_completed()
 
+    count_parsed_count = 0
     while True:
         try:
             # ================= 解析更新数据库
-            count_parsed = parse_process(serviceApplication)
+            # count_parsed = parse_process(serviceApplication)
+            count_parsed = parse_process_limit(serviceApplication)
             # ================ 更新es库
             count_to_es = post_to_es(serviceApplication)
             # ================ 更新标识
             if count_parsed > 0 or count_to_es > 0:
                 serviceApplication.set_all_waiting_completed()
-                print("========== {} 标识更新完成 ==========\n\n".format(
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                count_parsed_count += count_parsed
+                print("========== {} 标识更新完成, 操作数据量: {} ==========".format(
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), count_parsed_count))
+
+            if count_parsed == 0:
+                count_parsed_count = 0
+
             sleep(5)
         except Exception as e:
             print(str(e))

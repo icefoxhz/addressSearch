@@ -4,16 +4,24 @@ from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Se
 
 @Component
 class AddressMapping:
-    @Select("select * from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
-    def get_address_data(self, table, page_size, offset):
+    # @Select("select * from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
+    # def get_address_data(self, table, page_size, offset):
+    #     pass
+
+    @Select("select * from #{table} where op_flag!=9 limit #{limit_size}")
+    def get_address_data_limit(self, table, limit_size):
         pass
 
     # @Select("SELECT * FROM ( SELECT t.*, ROWNUM as rn FROM ( SELECT * FROM #{table} ORDER BY id ) t ) WHERE rn BETWEEN #{start_row} AND #{end_row}")
     # def get_address_data_oracle(self, table, start_row, end_row):
     #     pass
 
-    @Select("select * from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
-    def get_parsed_data(self, table, page_size, offset):
+    # @Select("select * from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
+    # def get_parsed_data(self, table, page_size, offset):
+    #     pass
+
+    @Select("select * from #{table} where op_flag!=8 and op_flag!=9 limit #{limit_size}")
+    def get_parsed_data_limit(self, table, limit_size):
         pass
 
     # @Select("SELECT * FROM ( SELECT t.*, ROWNUM as rn FROM ( SELECT * FROM #{table} ORDER BY id ) t ) WHERE rn BETWEEN #{start_row} AND #{end_row}")
@@ -67,4 +75,3 @@ class AddressMapping:
     @Update("update #{table} set op_flag=2 where id='#{table_id}'")
     def set_deleted(self, table, table_id):
         pass
-

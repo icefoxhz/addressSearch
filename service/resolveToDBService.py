@@ -14,6 +14,7 @@ from addressSearch.es.schemas import es_schema_field_building_number, es_schema_
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.configService import ConfigService
 from addressSearch.service.lacModelManageService import LacModelManageService
+from addressSearch.utils.commonTool import CommonTool
 
 
 @Component
@@ -225,33 +226,47 @@ class ResolveToDBService:
     #
     #     return False
 
-    def start_by_process(self, start_row, end_row):
-        progress_bar = tqdm(total=0, position=0, leave=True, desc="地名地址解析后生成解析表, 当前完成 ", unit=" 条")
+    # def start_by_process(self, start_row, end_row):
+    #     progress_bar = tqdm(total=0, position=0, leave=True, desc="地名地址解析后生成解析表, 当前完成 ", unit=" 条")
+    #
+    #     start = start_row
+    #     end = end_row
+    #     try:
+    #         page_size = self._batch_size
+    #         while True:
+    #             # 保证不会多查数据
+    #             remain_size = end - start
+    #             if remain_size < 0:
+    #                 break
+    #
+    #             page_size = remain_size if page_size > remain_size else page_size
+    #
+    #             df = self._addressMapping.get_address_data(self._address_table, page_size, start)
+    #             if df is None or len(df) == 0:
+    #                 break
+    #             self._self.do_run(df, False, progress_bar)
+    #             self._self.do_run(df, True, progress_bar)
+    #
+    #             start += page_size
+    #
+    #             if start >= end:
+    #                 break
+    #
+    #         progress_bar.close()
+    #     except Exception as e:
+    #         # print(str(e))
+    #         log.error("start_by_process => " + str(e))
 
-        start = start_row
-        end = end_row
+    def start_by_process_df(self, df):
         try:
-            page_size = self._batch_size
-            while True:
-                # 保证不会多查数据
-                remain_size = end - start
-                if remain_size < 0:
-                    break
+            batch = int(len(df) / self._batch_size)
+            batch += int(0 if len(df) % self._batch_size == 0 else 1)
 
-                page_size = remain_size if page_size > remain_size else page_size
-
-                df = self._addressMapping.get_address_data(self._address_table, page_size, start)
-                if df is None or len(df) == 0:
-                    break
-                self._self.do_run(df, False, progress_bar)
-                self._self.do_run(df, True, progress_bar)
-
-                start += page_size
-
-                if start >= end:
-                    break
-
-            progress_bar.close()
+            ls_df = CommonTool.split_dataframe(df, batch)
+            for df in ls_df:
+                self._self.do_run(df, False, None)
+                self._self.do_run(df, True, None)
+                del df
         except Exception as e:
             # print(str(e))
             log.error("start_by_process => " + str(e))

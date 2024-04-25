@@ -2,6 +2,9 @@ import re
 import os
 import datetime
 
+import numpy as np
+import pandas as pd
+
 
 class CommonTool:
     ES_LONG_MAX = 9223372036854775807
@@ -188,3 +191,16 @@ class CommonTool:
         except:
             pass
         return 0
+
+    @staticmethod
+    def split_dataframe(df, n):
+        # 首先确保n不会导致分割结果的小数部分
+        if n < 2 or n > df.shape[0]:
+            return [df]
+
+        # 计算每份数据的行数
+        chunks = np.array_split(df.values, n, axis=0)
+
+        # 将numpy数组转换回DataFrame
+        return [pd.DataFrame(chunk, columns=df.columns) for chunk in chunks]
+
