@@ -11,6 +11,7 @@ from time import sleep
 from pySimpleSpringFramework.spring_core.applicationStarter import ApplicationStarter
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import ComponentScan, ConfigDirectories
 from addressSearch.utils.commonTool import CommonTool
+from datetime import datetime
 
 
 # 基于 root_model_path 的相对的位置， 因为 root_model_path 就是包
@@ -80,7 +81,7 @@ def task_parse(start_row, end_row):
 def parse_process(app):
     data_count = app.get_address_data_count()
     if data_count == 0:
-        return
+        return data_count
 
     executorTaskManager = app.application_context.get_bean("executorTaskManager")
     process_count = executorTaskManager.core_num
@@ -103,6 +104,7 @@ def parse_process(app):
         # print(start, end)
         executorTaskManager.submit(task_parse, True, None, start, end)
     executorTaskManager.wait_completed()
+    return data_count
 
 
 # def parse_process(app):
@@ -134,8 +136,9 @@ def parse_process(app):
 def post_to_es(app):
     data_count = app.get_parsed_address_data_count()
     if data_count == 0:
-        return
+        return data_count
     app.do_post_to_es()
+    return data_count
 
 
 if __name__ == '__main__':
@@ -152,9 +155,14 @@ if __name__ == '__main__':
     while True:
         try:
             # ================= 解析更新数据库
-            parse_process(serviceApplication)
+            count_parsed = parse_process(serviceApplication)
             # ================ 更新es库
-            post_to_es(serviceApplication)
+            count_to_es = post_to_es(serviceApplication)
+            # ================ 更新标识
+            if count_parsed > 0 or count_to_es > 0:
+                serviceApplication.set_all_waiting_completed()
+                print("========== {} 标识更新完成 ==========\n\n".format(
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             sleep(5)
         except Exception as e:
             print(str(e))

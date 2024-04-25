@@ -163,12 +163,10 @@ class PostDataToEsService:
                     futures.append(future)
                 page += 1
             self._executorTaskManager.waitUntilComplete(futures)
-            # 把完成的状态更新  op_flag=9
-            self._addressMapping.set_all_waiting_completed(self._parsed_address_table)
 
             progress_bar.close()
             if len(futures) > 0:
-                print("========== {} 本次操作完成 ==========\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                print("========== {} 本次操作完成 ==========".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             futures.clear()
 
             return True

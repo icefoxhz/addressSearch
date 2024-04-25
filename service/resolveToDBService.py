@@ -251,8 +251,6 @@ class ResolveToDBService:
                 if start >= end:
                     break
 
-            # 把完成的状态更新  op_flag=9
-            self._addressMapping.set_all_waiting_completed(self._address_table)
             progress_bar.close()
         except Exception as e:
             # print(str(e))

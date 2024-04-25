@@ -125,17 +125,16 @@ class LacModelManageService:
 
     # 使用with的写法
     def __exit__(self, exc_type, exc_value, traceback):
+        if hasattr(self.__local_obj.model, "model") and self.__local_obj.model is not None:
+            with self._lock:
+                self.__q.append(self.__local_obj.model)
+
         # 如果在 with 语句块中出现异常，exc_type、exc_value 和 traceback 参数将包含异常信息
         if exc_type is not None:
             # raise Exception(f"出现异常,异常类型: {exc_type}, 异常信息: {exc_value}")
             log.error(f"LacModelManageService __exit__ 出现异常,异常类型: {exc_type}, 异常信息: {exc_value}")
             # 返回False则会让异常继续向上抛出
             return False
-
-        if hasattr(self.__local_obj.model, "model") and self.__local_obj.model is not None:
-            with self._lock:
-                self.__q.append(self.__local_obj.model)
-
         return True
 
     # def take(self):
