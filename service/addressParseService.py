@@ -95,6 +95,10 @@ class AddressParseService:
         if self._print_debug:
             print(msg)
 
+    @staticmethod
+    def __fail_ret():
+        return False, None, None, None, None, None, None, None
+
     def run(self, model: LAC, addr_string: str, is_participle_continue=False):
         """
         :param model:
@@ -102,15 +106,21 @@ class AddressParseService:
         :param is_participle_continue:
         :return:
         """
+        if not hasattr(self.__local_obj, "model_dict"):
+            self.__local_obj.model_dict = model.__getattribute__("model").custom.dictitem
+
         try:
             if not self.acceptAddress(addr_string):
-                return False, None, None, None, None, None, None, None
+                return self.__fail_ret()
 
-            addr_string = self.removeStartWordsIfNecessary(addr_string)
+            addr_string = self.removeStartWordsIfNecessary(model, addr_string)
             addr_string = self.removeExtra(addr_string)
             self.__print("移除无用信息: " + str(addr_string))
 
             _, addr_string, last_string = self.cutAddress(model, addr_string)
+
+            if addr_string is None or addr_string == "":
+                return self.__fail_ret()
 
             # 分詞並處理
             cut_list = self.participleAndProcess(model, addr_string)
@@ -120,12 +130,12 @@ class AddressParseService:
                 self.__print("二次分词结果: " + str(cut_list))
 
             if cut_list is None:
-                return False, None, None, None, None, None, None, None
+                return self.__fail_ret()
 
             # 找主体
             body_idx = self.findMainBodyIndex(model, addr_string, cut_list)
             if body_idx == -1:
-                return False, None, None, None, None, None, None, None
+                return self.__fail_ret()
             # 处理并生成 sections
             succeed, [address_section_first, address_section_main, address_section_mid, address_section_last,
                       address_section_build_number] = self.create_sections(
@@ -136,7 +146,7 @@ class AddressParseService:
                 # 找主体
                 body_idx = self.findMainBodyIndexReverse(model, addr_string, cut_list)
                 if body_idx == -1:
-                    return False, None, None, None, None, None, None, None
+                    return self.__fail_ret()
                 # 处理并生成 sections
                 succeed, [address_section_first, address_section_main, address_section_mid, address_section_last,
                           address_section_build_number] = self.create_sections(
@@ -148,10 +158,10 @@ class AddressParseService:
             return succeed, region, street, address_section_first, address_section_main, address_section_mid, address_section_last, address_section_build_number
         except Exception as e:
             self.__print(str(e))
-            return False, None, None, None, None, None, None, None
         finally:
             self.__local_obj.region = None
             self.__local_obj.street = None
+        return self.__fail_ret()
 
     def participleContinue(self, model: LAC, cut_list):
         word_list = cut_list[0]
@@ -159,7 +169,7 @@ class AddressParseService:
         word_list_ret = copy.deepcopy(word_list)
 
         # 獲取加載的字典表
-        model_dict = model.__getattribute__("model").custom.dictitem
+        model_dict = self.__local_obj.model_dict
         for i in range(len(word_list) - 1, -1, -1):
             word = word_list[i]
             if word in model_dict:
@@ -175,33 +185,6 @@ class AddressParseService:
                             break
         lac_list_ret = ["m" for _ in range(len(word_list_ret))]
         return [word_list_ret, lac_list_ret] if len(word_list_ret) != len(word_list) else None
-
-    # def participleContinue(self, model: LAC, cut_list):
-    #     word_list = cut_list[0]
-    #     lac_list = cut_list[1]
-    #
-    #     word_list_ret = copy.deepcopy(word_list)
-    #     lac_list_ret = copy.deepcopy(lac_list)
-    #
-    #     # 獲取加載的字典表
-    #     model_dict = model.__getattribute__("model").custom.dictitem
-    #     for i in range(len(word_list) - 1, -1, -1):
-    #         word = word_list[i]
-    #         if word in model_dict:
-    #             _, word, _ = self.__cutToCourtyardByChineseWords(model, word, False)
-    #             cut_list_temp = model.run(word)
-    #             word_list_temp = cut_list_temp[0]
-    #             lac_list_temp = cut_list_temp[1]
-    #             if len(word_list_temp) > 1 and (word_list_temp[0] in model_dict or word_list_temp[-1] in model_dict):
-    #                 for word2 in word_list_temp:
-    #                     if word2 in model_dict:
-    #                         word_list_ret.pop(i)
-    #                         lac_list_ret.pop(i)
-    #                         # 在word_list_ret的下标为i的位置插入cut_list_temp列表的元素
-    #                         word_list_ret[i:0] = word_list_temp
-    #                         lac_list_ret[i:0] = lac_list_temp
-    #                         break
-    #     return [word_list_ret, lac_list_ret] if len(word_list_ret) != len(word_list) else None
 
     def acceptAddress(self, addr_string: str):
         """
@@ -219,12 +202,21 @@ class AddressParseService:
         #         return False
         return True
 
-    def removeStartWordsIfNecessary(self, addr_string: str):
+    def removeStartWordsIfNecessary(self, model: LAC, addr_string: str):
         """
-        移除省、市、区、街道
+        移除 省、市、区、街道
+        :param model:
         :param addr_string:
         :return:
         """
+
+        # 如果第1个分词就在字典表里，说明不需要处理这一步了。 因为 省、市、区、街道 不放在字典中
+        model_dict = self.__local_obj.model_dict
+        cut_list = model.run(addr_string)[0]
+        first_word = cut_list[0]
+        if first_word in model_dict.keys():
+            return addr_string
+
         remove_list = [self._provinces, self._cities]
         for remove_words in remove_list:
             for remove_word in remove_words:
@@ -318,7 +310,7 @@ class AddressParseService:
         if cut_succeed:
             ret_succeed = cut_succeed
         if last_string is not None:
-            ret_last_string = last_string + ret_last_string
+            ret_last_string = last_string + ("" if ret_last_string is None else (self._CONJUNCTION + ret_last_string))
 
         return ret_succeed, addr_string, ret_last_string
 
@@ -489,7 +481,7 @@ class AddressParseService:
                     last_string = self._CONJUNCTION.join(cut_words[idx_s + 1:])
 
                 # 獲取加載的字典表
-                model_dict = model.__getattribute__("model").custom.dictitem
+                model_dict = self.__local_obj.model_dict
                 if word in model_dict.keys():
                     join_symbol = "号" if CommonTool.is_last_char_number(word) else ""
                     cut_addr_string = cut_addr_string + join_symbol + CommonTool.remove_chinese_chars(word_d)
@@ -500,8 +492,7 @@ class AddressParseService:
 
         return cut_succeed, addr_string, last_string
 
-    @staticmethod
-    def __cutToBuildingByJoinRePatterns(model: LAC, addr_string: str, re_list, get_front=True):
+    def __cutToBuildingByJoinRePatterns(self, model: LAC, addr_string: str, re_list, get_front=True):
         """
         根据正则判断截取到楼栋的位置，楼栋之后的去掉
         :param model:
@@ -511,7 +502,7 @@ class AddressParseService:
         :return:
         """
         # 獲取加載的字典表
-        model_dict = model.__getattribute__("model").custom.dictitem
+        model_dict = self.__local_obj.model_dict
 
         cut_succeed = False
         # 根据正则判断
@@ -519,8 +510,23 @@ class AddressParseService:
             match = re.search(pattern, addr_string)
             if match:
                 result = match.group(0)
+
+                # 分词后看第1个词是否在字典中，如果在就不要操作了。
+                # 比如: 东贤中路67号丁蜀中心幼儿园东行50米 , 会把整个都找到，但是"东贤中路"是字典
+                while True:
+                    cut_word = model.run(result)[0]
+                    cut_first_word = cut_word[0]
+                    if cut_first_word not in model_dict.keys():
+                        break
+                    s = "".join(cut_word[1:])
+                    match = re.search(pattern, s)
+                    if not match:
+                        break
+                    result = match.group(0)
+
                 # 不在字典内就分割出去
                 if result not in model_dict.keys():
+                    cut_succeed = True
                     addr_string = addr_string.split(result)[0] if get_front else addr_string.split(result)[1]
 
         return cut_succeed, addr_string
@@ -536,7 +542,7 @@ class AddressParseService:
         # print(cut_list)
         self.__print("分词并处理前: " + str(cut_list))
 
-        self.removeBigRegions(cut_list)
+        self.removeBigRegions(model, cut_list)
         self.__print("分词并处理（removeBigRegions）: " + str(cut_list))
 
         self.removeSingleChinese(cut_list)
@@ -550,26 +556,30 @@ class AddressParseService:
 
         return cut_list
 
-    def removeBigRegions(self, cut_list: list):
+    def removeBigRegions(self, model: LAC, cut_list: list):
         """
         去掉分词是省、市、区、街道的， 和 去掉词中的省、市、区、街道
+        :param model:
         :param cut_list:
         :return:
         """
         cut_words = cut_list[0]
         lac_words = cut_list[1]
 
+        # 獲取加載的字典表
+        model_dict = self.__local_obj.model_dict
+
         # 去掉分词是省、市、区、街道的
         remove_idx_ls = []
         for i in range(len(cut_words)):
             j_word = cut_words[i]
-            if j_word in self._provinces:
+            if j_word in self._provinces and j_word not in model_dict.keys():
                 remove_idx_ls.insert(0, i)
-            elif j_word in self._cities:
+            elif j_word in self._cities and j_word not in model_dict.keys():
                 remove_idx_ls.insert(0, i)
-            elif j_word in self._regions:
+            elif j_word in self._regions and j_word not in model_dict.keys():
                 remove_idx_ls.insert(0, i)
-            elif j_word in self._streets:
+            elif j_word in self._streets and j_word not in model_dict.keys():
                 remove_idx_ls.insert(0, i)
         for idx in remove_idx_ls:
             cut_words.pop(idx)
@@ -578,6 +588,8 @@ class AddressParseService:
         # 去掉词中的省、市、区、街道
         for i in range(len(cut_words)):
             j_word = cut_words[i]
+            if j_word in model_dict.keys():
+                continue
             for w in self._provinces:
                 j_word = j_word.replace(w, "")
             for w in self._cities:
@@ -610,8 +622,7 @@ class AddressParseService:
             cut_words.pop(idx)
             lac_words.pop(idx)
 
-    @staticmethod
-    def removeUselessWordsByLac(model: LAC, cut_list):
+    def removeUselessWordsByLac(self, model: LAC, cut_list):
         """
         根據詞性去掉無用詞，但該詞不能在字典中， 比如： 的
         :param model:
@@ -619,7 +630,7 @@ class AddressParseService:
         :return:
         """
         # 獲取加載的字典表
-        model_dict = model.__getattribute__("model").custom.dictitem
+        model_dict = self.__local_obj.model_dict
 
         cut_words = cut_list[0]
         lac_words = cut_list[1]
@@ -684,12 +695,11 @@ class AddressParseService:
                     if v.endswith(word):
                         sect[k] = v[:len(v) - 1]
 
-    @staticmethod
-    def findMainBodyIndexByDict(model: LAC, cut_words, only_in_dict_return=False):
+    def findMainBodyIndexByDict(self, model: LAC, cut_words, only_in_dict_return=False):
         """
         根据字典表，截取到楼栋的位置。（分词在字典中，且该词的后一个词是数字。 only_in_dict_return=True则，分词在字典中就返回）
         """
-        model_dict = model.__getattribute__("model").custom.dictitem
+        model_dict = self.__local_obj.model_dict
         find_idx = -1
 
         for i in range(len(cut_words) - 1, -1, -1):
@@ -810,7 +820,7 @@ class AddressParseService:
             # 后面部分可能有中文， 这个中文如果在字典表中，且还有位置放，则保留下来
             if self._LAST_MAX_LEN > len(last_cut_list):
                 # 獲取加載的字典表
-                model_dict = model.__getattribute__("model").custom.dictitem
+                model_dict = self.__local_obj.model_dict
 
                 idx = len(last_cut_list)
                 cut_list = model.run(last_string_copy)[0]
@@ -867,6 +877,7 @@ class AddressParseService:
                 or len(address_section_main) > len(es_schema_fields_main)
                 or len(address_section_mid) > len(es_schema_fields_mid)
                 or len(address_section_last) > len(es_schema_fields_last)):
+            print(f"解析出的长度超限制, cut_list = {cut_list}")
             return False, [None, None, None, None, None]
 
         # 最后的处理

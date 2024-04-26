@@ -20,6 +20,10 @@ class LacModelManageService:
     __local_obj = threading.local()
 
     @Value({
+        "project.big_region.province": "_provinces",
+        "project.big_region.city": "_cities",
+        "project.big_region.region": "_regions",
+        "project.big_region.street": "_streets",
         "project.lac.model_path": "_model_path",
         "project.lac.dict_dir": "_dict_dir",
         "task.execution.pool.max_size": "_max_size",
@@ -33,6 +37,11 @@ class LacModelManageService:
         self._configService = None
         self._databaseManager = None
         self._max_size = 2
+
+        self._provinces = None
+        self._cities = None
+        self._regions = None
+        self._streets = None
 
         self._workDir = os.path.abspath('../service')
         self._currentDir = os.path.dirname(__file__)
@@ -63,6 +72,13 @@ class LacModelManageService:
         self._databaseManager.switch_datasource("sourceConfig")
         data = self._configMapping.get_address_dict(dict_table)
         self._databaseManager.switch_datasource("sourceData")
+
+        # 去掉配置文件中的 省、市、区、街道， 这些不能放到字典中，要影响判断算法
+        remove_lss = [self._provinces, self._cities, self._regions, self._streets]
+        for ls in remove_lss:
+            for word in ls:
+                # data.drop(data[data['dict_value'] == word].index, inplace=True)
+                data = data[data['dict_value'] != word]
 
         data["dict_value"].to_csv(self._dict_path, index=False, header=False)
         # print("===== 重新下载分词字典完成 =====")

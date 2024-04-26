@@ -8,7 +8,7 @@ class AddressMapping:
     # def get_address_data(self, table, page_size, offset):
     #     pass
 
-    @Select("select * from #{table} where op_flag!=9 limit #{limit_size}")
+    @Select("select * from #{table} where op_flag=0 or op_flag=1 or op_flag=2 limit #{limit_size}")
     def get_address_data_limit(self, table, limit_size):
         pass
 
@@ -20,7 +20,7 @@ class AddressMapping:
     # def get_parsed_data(self, table, page_size, offset):
     #     pass
 
-    @Select("select * from #{table} where op_flag!=8 and op_flag!=9 limit #{limit_size}")
+    @Select("select * from #{table} where op_flag=0 or op_flag=1 or op_flag=2 limit #{limit_size}")
     def get_parsed_data_limit(self, table, limit_size):
         pass
 
@@ -30,10 +30,6 @@ class AddressMapping:
 
     @Delete("truncate table #{table}")
     def truncate_table(self, table):
-        pass
-
-    @Select("select count(1) from #{table} where op_flag!=9")
-    def get_data_count(self, table):
         pass
 
     @Delete("delete from #{table} where id='#{table_id}'")
@@ -57,6 +53,11 @@ class AddressMapping:
     # 分页过程中更新成op_flag=9会导致分页查询有问题，因为查的是 op_flag !=9的，所以先更新成中间状态，即 op_flag=8
     @Update("update #{table} set op_flag=8, is_del=1 where id='#{table_id}'")
     def set_delete_and_waiting_completed(self, table, table_id):
+        pass
+
+    # 无法解析的
+    @Update("update #{table} set op_flag=7 where id='#{table_id}'")
+    def set_unable_parsed(self, table, table_id):
         pass
 
     # 把中间状态的更新成完成

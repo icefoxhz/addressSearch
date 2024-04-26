@@ -178,36 +178,25 @@ class PostDataToEsService:
     #
     #     return False
 
-    def start_by_thread_df(self):
-        progress_bar = tqdm(total=0, position=0, leave=True,
-                            desc="从解析表读取数据后写入到ElasticSearch库, 当前完成 ", unit=" 条")
-
+    def start_by_thread_df(self, df):
         try:
-            thread_count = self._max_core
-            while True:
-                data = self._addressMapping.get_parsed_data_limit(self._parsed_address_table, self._batch_size * thread_count)
-                if data is None or len(data) == 0:
-                    break
+            batch = int(len(df) / self._batch_size)
+            batch += int(0 if len(df) % self._batch_size == 0 else 1)
 
-                if len(data) < self._batch_size * thread_count:
-                    thread_count = 1
+            ls_df = CommonTool.split_dataframe(df, batch)
+            futures = []
+            for df_tmp in ls_df:
+                future = self._executorTaskManager.submit(self._self.do_run,
+                                                          False,
+                                                          self.callback_function,
+                                                          df_tmp,
+                                                          None)
+                if future is not None:
+                    futures.append(future)
 
-                futures = []
-
-                ls_df = CommonTool.split_dataframe(data, thread_count)
-                for df in ls_df:
-                    future = self._executorTaskManager.submit(self._self.do_run,
-                                                              False,
-                                                              self.callback_function,
-                                                              df,
-                                                              progress_bar)
-                    if future is not None:
-                        futures.append(future)
-                self._executorTaskManager.waitUntilComplete(futures)
-                futures.clear()
-
-            progress_bar.close()
-            print("========== {} 本次操作完成 ==========".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            self._executorTaskManager.waitUntilComplete(futures)
+            futures.clear()
+            del ls_df
             return True
         except Exception as e:
             # print(str(e))

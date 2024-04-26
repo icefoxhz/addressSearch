@@ -88,11 +88,13 @@ class ResolveToDBService:
 
     @Transactional()
     def do_run(self, df, is_participle_continue=False, progress_bar=None):
+        is_parsed = False
         with (self._lacModelManageService as model):
             do_count = 0
             ids_insert = []
             ids_update = []
             ids_delete = []
+            ids_unable_parsed = []
 
             data_insert = []
             data_modify = []
@@ -140,6 +142,8 @@ class ResolveToDBService:
                     succeed, _, _, section_fir, section_main, section_mid, section_last, section_build_number = address_parser.run(
                         model, full_name, is_participle_continue)
                     if not succeed:
+                        if not is_participle_continue:
+                            ids_unable_parsed.append(t_id)
                         continue
 
                     if (len(section_fir) > len(es_schema_fields_fir)
@@ -148,6 +152,8 @@ class ResolveToDBService:
                             or len(section_last) > len(es_schema_fields_last)):
                         log.error("分詞超过限制，地址: " + full_name)
                         continue
+
+                    is_parsed = True
 
                     result = section_fir | section_main | section_mid | section_last | section_build_number
                     if region is not None:
@@ -191,7 +197,14 @@ class ResolveToDBService:
                     for tId in ids_delete:
                         self._addressMapping.set_deleted(self._parsed_address_table, tId)
                         self._addressMapping.set_delete_and_waiting_completed(self._address_table, tId)
+
+                # 无法解析
+                if len(ids_unable_parsed) > 0:
+                    for tId in ids_unable_parsed:
+                        self._addressMapping.set_unable_parsed(self._address_table, tId)
+
             except Exception as e:
+                is_parsed = False
                 log.error("ResolveToDBService do_run => " + str(e))
                 ls = []
                 for data in data_insert:
@@ -200,6 +213,7 @@ class ResolveToDBService:
 
         if progress_bar is not None:
             progress_bar.update(do_count)
+        return is_parsed
 
     # def start_by_thread(self):
     #     self._addressMapping.truncate_table(self._parsed_address_table)
@@ -263,10 +277,12 @@ class ResolveToDBService:
             batch += int(0 if len(df) % self._batch_size == 0 else 1)
 
             ls_df = CommonTool.split_dataframe(df, batch)
-            for df in ls_df:
-                self._self.do_run(df, False, None)
-                self._self.do_run(df, True, None)
-                del df
+            for df_tmp in ls_df:
+                is_parsed = self._self.do_run(df_tmp, False, None)
+                if is_parsed:
+                    self._self.do_run(df_tmp, True, None)
+                del df_tmp
+            del df
         except Exception as e:
             # print(str(e))
             log.error("start_by_process => " + str(e))
