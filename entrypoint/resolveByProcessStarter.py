@@ -52,7 +52,6 @@ class ServiceApplication(ApplicationStarter):
 
     def do_post_to_es_limit(self, df):
         service = self.application_context.get_bean("postDataToEsService")
-        # service.start_by_thread()
         service.start_by_thread_df(df)
 
     def main(self):
@@ -93,7 +92,7 @@ def parse_process_limit(app):
     for df in ls_df:
         # print(start, end)
         executorTaskManager.submit(task_parse_limit, True, None, df)
-    print(f"\n============= 开始分词解析, 当前需要处理数量: {data_count} , 请等待 ============\n")
+    print(f"\n============ 开始分词解析, 当前需要处理数量: {data_count} , 请等待 ============\n")
     executorTaskManager.wait_completed()
     del ls_df
     return data_count
@@ -130,24 +129,21 @@ if __name__ == '__main__':
     count_to_es_count = 0
     while True:
         try:
-            # ================= 解析更新数据库
-            # count_parsed = parse_process(serviceApplication)
+            # 分词和解析
             count_parsed = parse_process_limit(serviceApplication)
-            # ================ 更新es库
-            # count_to_es = post_to_es(serviceApplication)
+            # 更新es
             count_to_es = post_to_es_limit(serviceApplication)
-            # ================ 更新标识
+
+            tm_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             if count_parsed > 0 or count_to_es > 0:
                 count_parsed_count += count_parsed
                 count_to_es_count += count_to_es
-                print("========== {} 标识更新完成, 分词总量: {}, ES总量: {} ==========\n".format(
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), count_parsed_count, count_to_es_count))
+                print(f"===== {tm_now} 分词总量: {count_parsed_count}, ES总量: {count_to_es_count} =====\n")
 
             if count_parsed == 0 and count_to_es == 0 and count_parsed_count > 0:
                 count_parsed_count = 0
                 count_to_es_count = 0
-                print(">>>>>>>>> {} 当前需处理的数据全部完成 <<<<<<<<<\n\n".format(
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                print(f">>>>> {tm_now} 当前需处理数据全部完成 <<<<<\n\n")
 
             sleep(5)
         except Exception as e:
