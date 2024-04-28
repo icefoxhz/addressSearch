@@ -140,7 +140,7 @@ class PostDataToEsService:
     @Transactional(propagation=Propagation.REQUIRES_NEW)
     def set_waiting_completed(self, ids):
         for tId in ids:
-            self._addressMapping.set_waiting_completed(self._parsed_address_table, tId)
+            self._addressMapping.set_completed(self._parsed_address_table, tId)
 
     # def start_by_thread(self):
     #     progress_bar = tqdm(total=0, position=0, leave=True,

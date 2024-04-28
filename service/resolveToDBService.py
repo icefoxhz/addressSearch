@@ -89,17 +89,17 @@ class ResolveToDBService:
     @Transactional()
     def do_run(self, df, is_participle_continue=False, progress_bar=None):
         is_parsed = False
-        with (self._lacModelManageService as model):
-            do_count = 0
-            ids_insert = []
-            ids_update = []
-            ids_delete = []
-            ids_unable_parsed = []
+        try:
+            with (self._lacModelManageService as model):
+                do_count = 0
+                ids_insert = []
+                ids_update = []
+                ids_delete = []
+                ids_unable_parsed = []
 
-            data_insert = []
-            data_modify = []
+                data_insert = []
+                data_modify = []
 
-            try:
                 for _, row in df.iterrows():
                     full_name = row[self._address_field_name]
                     if full_name is None or full_name == "":
@@ -153,8 +153,6 @@ class ResolveToDBService:
                         log.error("分詞超过限制，地址: " + full_name)
                         continue
 
-                    is_parsed = True
-
                     result = section_fir | section_main | section_mid | section_last | section_build_number
                     if region is not None:
                         result["region"] = region
@@ -181,7 +179,7 @@ class ResolveToDBService:
                 if len(data_insert) > 0:
                     self._do_parsed_result(data=data_insert)
                     for tId in ids_insert:
-                        self._addressMapping.set_notDelete_and_waiting_completed(self._address_table, tId)
+                        self._addressMapping.set_notDelete_and_completed(self._address_table, tId)
 
                 # 修改
                 if len(data_modify) > 0:
@@ -190,26 +188,29 @@ class ResolveToDBService:
                     self._do_parsed_result(data=data_modify)
 
                     for tId in ids_update:
-                        self._addressMapping.set_notDelete_and_waiting_completed(self._address_table, tId)
+                        self._addressMapping.set_notDelete_and_completed(self._address_table, tId)
 
                 # 删除
                 if len(ids_delete) > 0:
                     for tId in ids_delete:
                         self._addressMapping.set_deleted(self._parsed_address_table, tId)
-                        self._addressMapping.set_delete_and_waiting_completed(self._address_table, tId)
+                        self._addressMapping.set_delete_and_completed(self._address_table, tId)
 
                 # 无法解析
                 if len(ids_unable_parsed) > 0:
                     for tId in ids_unable_parsed:
                         self._addressMapping.set_unable_parsed(self._address_table, tId)
 
-            except Exception as e:
-                is_parsed = False
-                log.error("ResolveToDBService do_run => " + str(e))
-                ls = []
-                for data in data_insert:
-                    ls.append(data[self._ID_FIELD_NAME])
-                log.error("ResolveToDBService do_run => " + str(ls))
+                is_parsed = True
+        except Exception as e:
+            log.error("ResolveToDBService do_run => " + str(e))
+
+            # ls = []
+            # for data in data_insert:
+            #     ls.append(data[self._ID_FIELD_NAME])
+            # log.error("ResolveToDBService do_run => " + str(ls))
+
+            raise Exception(e)
 
         if progress_bar is not None:
             progress_bar.update(do_count)

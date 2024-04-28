@@ -13,7 +13,7 @@ from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import 
 from addressSearch.utils.commonTool import CommonTool
 from datetime import datetime
 
-__LIMIT_SCALE = 20
+__LIMIT_SCALE = 10
 
 
 # 基于 root_model_path 的相对的位置， 因为 root_model_path 就是包
@@ -38,10 +38,6 @@ class ServiceApplication(ApplicationStarter):
         dict_dir = self._application_environment.get("project.lac.dict_dir")
         CommonTool.delete_old_files(dict_dir)
 
-    def truncate_address_table(self):
-        parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
-        self._address_mapping.truncate_table(parsed_address_table)
-
     def get_address_data_limit(self, limit_size):
         data = self._address_mapping.get_address_data_limit(self._address_table, limit_size)
         return data
@@ -59,20 +55,15 @@ class ServiceApplication(ApplicationStarter):
         # service.start_by_thread()
         service.start_by_thread_df(df)
 
-    def set_all_waiting_completed(self):
-        # 防止 flag=8的没更新， 每次启动先把 flag=8 的更新成 9
-        self._address_table = self._configService.get_addr_cnf("data_table")
-        self._address_mapping.set_all_waiting_completed(self._address_table)
-
-        self._address_parsed_table = self._configService.get_addr_cnf("data_table_parsed")
-        self._address_mapping.set_all_waiting_completed(self._address_parsed_table)
-
     def main(self):
         self._application_environment = self.application_context.get_bean("applicationEnvironment")
         self._address_mapping = self.application_context.get_bean("addressMapping")
         self._configService = self.application_context.get_bean("configService")
         self._esInitService = self.application_context.get_bean("esInitService")
         self._esInitService.create_scripts()
+
+        self._address_table = self._configService.get_addr_cnf("data_table")
+        self._address_parsed_table = self._configService.get_addr_cnf("data_table_parsed")
 
 
 def task_parse_limit(df):
@@ -102,7 +93,7 @@ def parse_process_limit(app):
     for df in ls_df:
         # print(start, end)
         executorTaskManager.submit(task_parse_limit, True, None, df)
-    print(f"============= 开始分词解析, 当前需要处理数量: {data_count} , 请等待 ============")
+    print(f"\n============= 开始分词解析, 当前需要处理数量: {data_count} , 请等待 ============\n")
     executorTaskManager.wait_completed()
     del ls_df
     return data_count
@@ -134,7 +125,6 @@ if __name__ == '__main__':
     serviceApplication.run(debug=True)
 
     serviceApplication.clearLacCustomDict()
-    serviceApplication.set_all_waiting_completed()
 
     count_parsed_count = 0
     count_to_es_count = 0
@@ -148,7 +138,6 @@ if __name__ == '__main__':
             count_to_es = post_to_es_limit(serviceApplication)
             # ================ 更新标识
             if count_parsed > 0 or count_to_es > 0:
-                serviceApplication.set_all_waiting_completed()
                 count_parsed_count += count_parsed
                 count_to_es_count += count_to_es
                 print("========== {} 标识更新完成, 分词总量: {}, ES总量: {} ==========\n".format(

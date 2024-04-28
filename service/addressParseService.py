@@ -877,7 +877,7 @@ class AddressParseService:
                 or len(address_section_main) > len(es_schema_fields_main)
                 or len(address_section_mid) > len(es_schema_fields_mid)
                 or len(address_section_last) > len(es_schema_fields_last)):
-            print(f"解析出的长度超限制, cut_list = {cut_list}")
+            self.__print(f"解析出的长度超限制, cut_list = {cut_list}")
             return False, [None, None, None, None, None]
 
         # 最后的处理

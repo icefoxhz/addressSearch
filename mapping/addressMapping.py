@@ -40,19 +40,12 @@ class AddressMapping:
     def set_completed(self, table, table_id):
         pass
 
-    # 分页过程中更新成op_flag=9会导致分页查询有问题，因为查的是 op_flag !=9的，所以先更新成中间状态，即 op_flag=8
-    @Update("update #{table} set op_flag=8 where id='#{table_id}'")
-    def set_waiting_completed(self, table, table_id):
+    @Update("update #{table} set op_flag=9, is_del=0 where id='#{table_id}'")
+    def set_notDelete_and_completed(self, table, table_id):
         pass
 
-    # 分页过程中更新成op_flag=9会导致分页查询有问题，因为查的是 op_flag !=9的，所以先更新成中间状态，即 op_flag=8
-    @Update("update #{table} set op_flag=8, is_del=0 where id='#{table_id}'")
-    def set_notDelete_and_waiting_completed(self, table, table_id):
-        pass
-
-    # 分页过程中更新成op_flag=9会导致分页查询有问题，因为查的是 op_flag !=9的，所以先更新成中间状态，即 op_flag=8
-    @Update("update #{table} set op_flag=8, is_del=1 where id='#{table_id}'")
-    def set_delete_and_waiting_completed(self, table, table_id):
+    @Update("update #{table} set op_flag=9, is_del=1 where id='#{table_id}'")
+    def set_delete_and_completed(self, table, table_id):
         pass
 
     # 无法解析的
