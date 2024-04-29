@@ -1,3 +1,5 @@
+import copy
+
 from pySimpleSpringFramework.spring_core.log import log
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component, Scope
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Autowired, Value
@@ -195,6 +197,7 @@ class EsSearchService:
         d_main = None
         d_mid1 = None
         d_mid2 = None
+        d_mid3 = None
         d_last_all = None
         d_last_one = None
 
@@ -269,7 +272,7 @@ class EsSearchService:
                 )
             else:
                 d_mid1 = {"bool": {"should": [], "minimum_should_match": "100%"}}  # 0% 是要求至少匹配一个
-                d_mid2 = {"bool": {"should": [], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
+                # d_mid2 = {"bool": {"should": [], "minimum_should_match": "0%"}}  # 0% 是要求至少匹配一个
                 for field, val in sections_mid.items():
                     d_mid1["bool"]["should"].append(
                         {
@@ -283,18 +286,29 @@ class EsSearchService:
                             }
                         }
                     )
-                    d_mid2["bool"]["should"].append(
-                        {
-                            "multi_match": {
-                                "query": val,
-                                "fields":
-                                    es_schema_fields_mid + es_schema_fields_last
-                                    if not val.isdigit()  # 如果非纯数字就多查下 last
-                                    else
-                                    es_schema_fields_mid
-                            }
-                        }
-                    )
+                    # d_mid2["bool"]["should"].append(
+                    #     {
+                    #         "multi_match": {
+                    #             "query": val,
+                    #             "fields":
+                    #                 es_schema_fields_mid + es_schema_fields_last
+                    #                 if not val.isdigit()  # 如果非纯数字就多查下 last
+                    #                 else
+                    #                 es_schema_fields_mid
+                    #         }
+                    #     }
+                    # )
+
+                d_mid2 = copy.deepcopy(d_mid1)
+                d_mid2["bool"]["minimum_should_match"] = "0%"
+
+                p = len(sections_mid)
+                if p > 1:
+                    p = int((2 / (p + 1)) * 100 + 1)
+                    d_mid2["bool"]["minimum_should_match"] = f"{p}%"
+
+                    d_mid3 = copy.deepcopy(d_mid1)
+                    d_mid3["bool"]["minimum_should_match"] = "0%"
 
             val = sections_building_number[es_schema_field_building_number]
             if val >= 0 and d_mid2 is not None:
@@ -311,6 +325,8 @@ class EsSearchService:
                         }
                     }
                 )
+                if d_mid3 is not None:
+                    d_mid3["bool"]["should"] = d_mid2["bool"]["should"]
 
         # 最后部分
         if sections_last is not None and len(sections_last) > 0:
@@ -348,8 +364,10 @@ class EsSearchService:
         lss = [
             [d_region, d_street, d_fir, d_main, d_mid1, d_last_all],
             [d_region, d_street, d_fir, d_main, d_mid2, d_last_one],
+            [d_region, d_street, d_fir, d_main, d_mid3, d_last_one],
             [d_region, d_street, d_fir, d_main, d_mid1],
             [d_region, d_street, d_fir, d_main, d_mid2],
+            [d_region, d_street, d_fir, d_main, d_mid3],
             [d_region, d_street, d_fir, d_main, d_last_all],
             [d_region, d_street, d_fir, d_main, d_last_one],
             [d_region, d_street, d_fir, d_main],
