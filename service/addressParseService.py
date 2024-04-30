@@ -511,13 +511,19 @@ class AddressParseService:
             if match:
                 result = match.group(0)
 
-                # 分词后看第1个词是否在字典中，如果在就不要操作了。
-                # 比如: 东贤中路67号丁蜀中心幼儿园东行50米 , 会把整个都找到，但是"东贤中路"是字典
+                cut_word_origin = model.run(addr_string)[0]
                 while True:
+                    # 分词后看第1个词, 第1个词是涉及方向的，但是可能在字典中
                     cut_word = model.run(result)[0]
                     cut_first_word = cut_word[0]
                     if cut_first_word not in model_dict.keys():
-                        break
+                        # 可能中间被截断，要获取整个词，判断是否在字典中。如果在就不要操作了。
+                        # 比如: 东贤中路67号丁蜀中心幼儿园东行50米 , 会把整个都找到，但是"东贤中路"是字典
+                        # 比如: 阳泉西路188号红星美凯龙3层西北方向70米， 会找到:西路188号红星美凯龙3层西北方向70米，但是"阳泉西路"是字典
+                        for word in cut_word_origin:
+                            if word.endswith(cut_first_word) and word not in model_dict.keys():
+                                break
+
                     s = "".join(cut_word[1:])
                     match = re.search(pattern, s)
                     if not match:
@@ -528,7 +534,7 @@ class AddressParseService:
                 if result not in model_dict.keys():
                     cut_succeed = True
                     addr_string = addr_string.split(result)[0] if get_front else addr_string.split(result)[1]
-
+        self.__print("截取到楼栋: " + addr_string)
         return cut_succeed, addr_string
 
     def participleAndProcess(self, model: LAC, addr_string: str):
