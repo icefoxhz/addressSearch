@@ -9,8 +9,12 @@ sys.path.append(root_model_path)
 # 在这里导入自己的serviceApplication 和 start_rest_service
 from addressSearch.entrypoint.applicationStarter import serviceApplication
 from addressSearch.controller.queryController import start_rest_service
+from addressSearch.utils.commonTool import CommonTool
+
 
 if __name__ == '__main__':
+    CommonTool.write_pid("rest_pid", pid=os.getpid())
+
     # 启动app
     serviceApplication.run(True)
 

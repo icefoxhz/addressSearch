@@ -38,10 +38,10 @@ class AddressParseService:
         self._common_symbol = ["·"]
 
         # --------------------------------
-        # 特殊楼栋判断。  震泽路18号B座狮子座
+        # 特殊楼栋判断, 没有按从左往右是从大到小的顺序写。  震泽路18号B座狮子座 => 正确的应该是: 震泽路18号狮子座B座
         # self._special_building_chinese_words = ["狮子座", "巨蟹座", "双子座", "白羊座", "金牛座", "射手座", "水瓶座",
         #                                         "处女座", "凤凰座", "海豚座", "鲸鱼座",  "天蝎座", "摩羯座", "双鱼座",
-        #                                         "天鹅座", "飞鱼座", "杜鹃座", ]
+        #                                         "天鹅座", "飞鱼座", "杜鹃座"]
         self._special_building_chinese_words = []
 
         # 通用楼栋判断
@@ -511,20 +511,21 @@ class AddressParseService:
             if match:
                 result = match.group(0)
 
-                cut_word_origin = model.run(addr_string)[0]
+                cut_words_origin = model.run(addr_string)[0]
                 while True:
                     # 分词后看第1个词, 第1个词是涉及方向的，但是可能在字典中
-                    cut_word = model.run(result)[0]
-                    cut_first_word = cut_word[0]
+                    cut_words = model.run(result)[0]
+                    cut_first_word = cut_words[0]
                     if cut_first_word not in model_dict.keys():
                         # 可能中间被截断，要获取整个词，判断是否在字典中。如果在就不要操作了。
                         # 比如: 东贤中路67号丁蜀中心幼儿园东行50米 , 会把整个都找到，但是"东贤中路"是字典
                         # 比如: 阳泉西路188号红星美凯龙3层西北方向70米， 会找到:西路188号红星美凯龙3层西北方向70米，但是"阳泉西路"是字典
-                        for word in cut_word_origin:
+                        for word in cut_words_origin:
+                            # 找到截取对应的分词的那个词，并判断是否在字典中
                             if word.endswith(cut_first_word) and word not in model_dict.keys():
                                 break
 
-                    s = "".join(cut_word[1:])
+                    s = "".join(cut_words[1:])
                     match = re.search(pattern, s)
                     if not match:
                         break

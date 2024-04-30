@@ -117,6 +117,8 @@ def post_to_es_limit(app):
 
 
 if __name__ == '__main__':
+    CommonTool.write_pid("resolve_pid", pid=os.getpid())
+
     # freeze_support()  # pyinstaller 打包后的进程支持，必须加，不然无法使用进程
     print("root_model_path=", root_model_path)
 

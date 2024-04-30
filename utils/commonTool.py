@@ -1,6 +1,8 @@
 import re
 import os
 import datetime
+import signal
+import sys
 
 import numpy as np
 import pandas as pd
@@ -203,4 +205,9 @@ class CommonTool:
 
         # 将numpy数组转换回DataFrame
         return [pd.DataFrame(chunk, columns=df.columns) for chunk in chunks]
+
+    @staticmethod
+    def write_pid(file_name, pid):
+        with open(file_name, mode="w") as file:
+            file.write(str(pid))
 
