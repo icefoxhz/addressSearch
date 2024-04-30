@@ -67,8 +67,8 @@ async def handle_os_error(request, exc):
 async def generate_user_result(result):
     del_keys = []
     for k in result.keys():
-        if str(k).startswith("fir_") or str(k).startswith("f_main") or str(k).startswith("mid_") or str(
-                k).startswith("last_") or str(k).startswith("building_number"):
+        if (str(k).startswith("fir_") or str(k).startswith("mid_") or str(k).startswith("last_") or
+                str(k).startswith("building_number")):
             del_keys.append(k)
     for k in del_keys:
         result.pop(k)

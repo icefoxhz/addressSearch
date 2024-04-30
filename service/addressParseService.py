@@ -110,6 +110,8 @@ class AddressParseService:
             self.__local_obj.model_dict = model.__getattribute__("model").custom.dictitem
 
         try:
+            addr_string = self.prepareAddress(addr_string)
+
             if not self.acceptAddress(addr_string):
                 return self.__fail_ret()
 
@@ -202,6 +204,17 @@ class AddressParseService:
         #         return False
         return True
 
+    @staticmethod
+    def prepareAddress(addr_string: str):
+        """
+        预处理
+        """
+        # 全角转半角
+        addr_string = CommonTool.full_to_half(addr_string)
+        # 去掉空格
+        addr_string = CommonTool.remove_spaces(addr_string)
+        return addr_string
+
     def removeStartWordsIfNecessary(self, model: LAC, addr_string: str):
         """
         移除 省、市、区、街道
@@ -243,8 +256,6 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
-        addr_string = addr_string.strip()
-
         # 1.
         for extra_ls in self._extra_symbols:
             start_symbol = extra_ls[0]

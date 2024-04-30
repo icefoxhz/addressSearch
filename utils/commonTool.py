@@ -211,3 +211,31 @@ class CommonTool:
         with open(file_name, mode="w") as file:
             file.write(str(pid))
 
+    @staticmethod
+    def full_to_half(s):
+        """
+        全角字符转半角字符
+        :param s: 输入的全角字符串
+        :return: 转换后的半角字符串
+        """
+        # 全角空格转换为半角空格
+        s = s.replace('　', ' ')
+        # 转换其他全角字符（根据Unicode编码范围进行转换）
+        res = ''
+        for char in s:
+            if '\uFF01' <= char <= '\uFF5E':  # 全角字符范围
+                # 半角字符 = 全角字符 - 0xfee0
+                char = chr(ord(char) - 0xfee0)
+            res += char
+        return res
+
+    @staticmethod
+    def remove_spaces(s):
+        """
+        移除字符串中的所有空格字符
+        :param s: 输入的字符串
+        :return: 所有空格移除后的字符串
+        """
+        # 使用正则表达式匹配并替换掉所有空格字符
+        return re.sub(r'\s+', '', s)
+

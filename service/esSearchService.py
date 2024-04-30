@@ -316,7 +316,7 @@ class EsSearchService:
                     d_mid3["bool"]["minimum_should_match"] = "0%"
 
             val = sections_building_number[es_schema_field_building_number]
-            if val >= 0 and d_mid2 is not None:
+            if val > 0 and d_mid2 is not None:
                 gte = val - self._build_number_tolerance
                 gte = gte if gte > 0 else 1
                 lte = val + self._build_number_tolerance
