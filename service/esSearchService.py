@@ -153,7 +153,12 @@ class EsSearchService:
             for k, words in d.items():
                 if address_string.find(k) >= 0:
                     for word in words:
-                        address_string = address_string.replace(k, word)
+                        # 一对同义词出现在一个地址中。 比如: 机场路133号格林东方酒店6楼。  机场路133号 -> 格林东方酒店
+                        if address_string.find(word) >= 0:
+                            address_string = address_string.replace(k, "")
+                        # 同义词互换
+                        else:
+                            address_string = address_string.replace(k, word)
                         succeed, result = self._run_address_search_not_by_thesaurus(address_string)
                         if succeed:
                             return succeed, result
