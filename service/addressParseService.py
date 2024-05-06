@@ -188,7 +188,8 @@ class AddressParseService:
         lac_list_ret = ["m" for _ in range(len(word_list_ret))]
         return [word_list_ret, lac_list_ret] if len(word_list_ret) != len(word_list) else None
 
-    def acceptAddress(self, addr_string: str):
+    @staticmethod
+    def acceptAddress(addr_string: str):
         """
         太模糊的地址，无法处理
         :param addr_string:
@@ -222,7 +223,6 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
-
         # 如果第1个分词就在字典表里，说明不需要处理这一步了。 因为 省、市、区、街道 不放在字典中
         model_dict = self.__local_obj.model_dict
         cut_list = model.run(addr_string)[0]
