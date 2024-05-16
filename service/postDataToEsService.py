@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pandas as pd
 from pySimpleSpringFramework.spring_core.log import log
 from pySimpleSpringFramework.spring_core.task.executorTaskManager import ExecutorTaskManager
@@ -7,7 +5,6 @@ from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import 
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value, Autowired
 from pySimpleSpringFramework.spring_core.type.annotationType import Propagation
 from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Transactional
-from tqdm import tqdm
 
 from addressSearch.enums.dbOperator import DBOperator
 from addressSearch.es.elasticsearchManger import ElasticsearchManger

@@ -9,7 +9,8 @@ import pandas as pd
 
 
 class CommonTool:
-    ES_LONG_MAX = 9223372036854775807
+    # ES_LONG_MAX = 9223372036854775807
+    ES_NUMBER_MAX = 4294967296  # 2的32次方
 
     @staticmethod
     def has_chinese_characters(s):
@@ -155,15 +156,17 @@ class CommonTool:
     @staticmethod
     def hash_to_int(number, max_val):
         # 使用模运算将任何数字映射到 0 - max_val-1 之间
-        return abs(hash(number)) % max_val
+        return int(abs(hash(number)) % max_val)
 
     @staticmethod
     def convert_building_num(building_num):
+        building_num = str(building_num)
         try:
-            building_num = str(building_num)
             # 如果是数字
             pattern = re.compile(r'^-?\d+(\.\d+)?$')
             if bool(pattern.match(building_num)):
+                if int(building_num) > CommonTool.ES_NUMBER_MAX:
+                    building_num = CommonTool.hash_to_int(int(building_num), CommonTool.ES_NUMBER_MAX)
                 return int(building_num)
 
             # 带字母的
@@ -187,9 +190,11 @@ class CommonTool:
                 building_num = "".join(ascii_values)
                 building_num = int(building_num)
                 # hash，最大值为es中Long类型的最大值
-                if building_num > CommonTool.ES_LONG_MAX:
-                    building_num = CommonTool.hash_to_int(building_num, CommonTool.ES_LONG_MAX)
+                if building_num > CommonTool.ES_NUMBER_MAX:
+                    building_num = CommonTool.hash_to_int(building_num, CommonTool.ES_NUMBER_MAX)
                 return building_num
+
+            return int(building_num)
         except:
             pass
         return 0

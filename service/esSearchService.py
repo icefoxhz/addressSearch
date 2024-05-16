@@ -25,6 +25,8 @@ class EsSearchService:
         "project.score_script_id": "_score_script_id",
         "project.local_config.address_max_return": "_address_max_return",
         "project.big_region.multi_region": "_multi_region",
+        "project.big_region.region_field": "_region_field",
+        "project.big_region.street_field": "_street_field",
     })
     def __init__(self):
         self._print_debug = False
@@ -46,6 +48,8 @@ class EsSearchService:
         self._return_multi = False
         self._es_cli = None
         self._multi_region = False
+        self._region_field = None
+        self._street_field = None
         self._build_number_tolerance = 10  # 前后n栋的来去
 
     def _after_init(self):
@@ -616,9 +620,9 @@ class EsSearchService:
                     "id": self._score_script_id,
                     "params": {
                         "multi_region": 1 if self._multi_region else 0,
-                        "region_field": "region",
+                        "region_field": self._region_field,
                         "region_value": region if region is not None else "",
-                        "street_field": "street",
+                        "street_field": self._street_field,
                         "street_value": street if street is not None else "",
                         "query_fields_fir": es_schema_fields_fir,
                         "query_fields_mid": es_schema_fields_mid,

@@ -6,10 +6,9 @@ from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import
 from pySimpleSpringFramework.spring_core.type.annotationType import Propagation
 from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Transactional
 from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
-from tqdm import tqdm
 
 from addressSearch.enums.dbOperator import DBOperator
-from addressSearch.es.schemas import es_schema_field_building_number, es_schema_fields_fir, es_schema_fields_main, \
+from addressSearch.es.schemas import es_schema_fields_fir, es_schema_fields_main, \
     es_schema_fields_mid, es_schema_fields_last
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.configService import ConfigService
@@ -27,6 +26,7 @@ class ResolveToDBService:
         "project.standard.address_field_name": "_address_field_name",
         "project.big_region.region_field": "_region_field",
         "project.big_region.street_field": "_street_field",
+        "project.big_region.multi_region": "_multi_region",
     })
     def __init__(self):
         # 自己注入自己，为了可以调用 Sync
@@ -50,6 +50,7 @@ class ResolveToDBService:
         self._thread_pool_max_size = None
         self._region_field = None
         self._street_field = None
+        self._multi_region = False
 
     def __reduce__(self):
         # 在序列化过程中排除线程锁
@@ -108,8 +109,11 @@ class ResolveToDBService:
                     x = row[self._x_field_name]
                     y = row[self._y_field_name]
 
-                    region = row[self._region_field]
-                    street = row[self._street_field]
+                    region = None
+                    street = None
+                    if self._multi_region and self._region_field is not None and self._region_field != "" and self._street_field is not None and self._street_field != "":
+                        region = row[self._region_field]
+                        street = row[self._street_field]
 
                     op_flag = row["op_flag"]
                     is_del = row["is_del"]
