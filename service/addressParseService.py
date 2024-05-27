@@ -82,6 +82,9 @@ class AddressParseService:
         self._conjunction_re_patterns_get_behind = [r'路与(.*?)路交叉口',
                                                     r'路与(.*?)路交界处',
                                                     r'路与(.*?)路交汇处',
+                                                    r'路和(.*?)路交叉口',
+                                                    r'路和(.*?)路交界处',
+                                                    r'路和(.*?)路交汇处',
                                                     ]
 
         # --------------------------------
