@@ -162,3 +162,5 @@ cython_debug/
 
 ml_lac
 test
+/entrypoint/resolve_pid
+/entrypoint/rest_pid
