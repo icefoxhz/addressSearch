@@ -6,7 +6,7 @@ from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import
 from pySimpleSpringFramework.spring_core.type.annotationType import Propagation
 from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Transactional
 from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
-
+from tqdm import tqdm
 from addressSearch.enums.dbOperator import DBOperator
 from addressSearch.es.schemas import es_schema_fields_fir, es_schema_fields_main, \
     es_schema_fields_mid, es_schema_fields_last
@@ -209,10 +209,10 @@ class ResolveToDBService:
         except Exception as e:
             log.error("ResolveToDBService do_run => " + str(e))
 
-            # ls = []
-            # for data in data_insert:
-            #     ls.append(data[self._ID_FIELD_NAME])
-            # log.error("ResolveToDBService do_run => " + str(ls))
+            ls = []
+            for data in data_insert:
+                ls.append(data[self._ID_FIELD_NAME])
+            log.error("ResolveToDBService do_run => " + str(ls))
 
             raise Exception(e)
 
@@ -220,32 +220,7 @@ class ResolveToDBService:
             progress_bar.update(do_count)
         return is_parsed
 
-    # def start_by_thread(self):
-    #     self._addressMapping.truncate_table(self._parsed_address_table)
-    #     progress_bar = tqdm(total=0, position=0, leave=True, desc="地名地址解析后生成解析表, 当前完成 ", unit=" 条")
-    #     try:
-    #         page = 0
-    #         while True:
-    #             df = self._addressMapping.get_address_data(self._address_table, self._batch_size,
-    #                                                        page * self._batch_size)
-    #             if df is None or len(df) == 0:
-    #                 break
-    #
-    #             self._executorTaskManager.submit(self._self.do_run,
-    #                                              False,
-    #                                              None,
-    #                                              df,
-    #                                              progress_bar)
-    #             page += 1
-    #
-    #         self._executorTaskManager.wait_completed()
-    #         return True
-    #     except Exception as e:
-    #         log.error(str(e))
-    #
-    #     return False
-
-    # def start_by_process(self, start_row, end_row):
+    # def start_by_process_linux(self, start_row, end_row):
     #     progress_bar = tqdm(total=0, position=0, leave=True, desc="地名地址解析后生成解析表, 当前完成 ", unit=" 条")
     #
     #     start = start_row
@@ -259,12 +234,12 @@ class ResolveToDBService:
     #                 break
     #
     #             page_size = remain_size if page_size > remain_size else page_size
-    #
     #             df = self._addressMapping.get_address_data(self._address_table, page_size, start)
     #             if df is None or len(df) == 0:
     #                 break
-    #             self._self.do_run(df, False, progress_bar)
-    #             self._self.do_run(df, True, progress_bar)
+    #             is_parsed = self._self.do_run(df, False, progress_bar)
+    #             if is_parsed:
+    #                 self._self.do_run(df, True, progress_bar)
     #
     #             start += page_size
     #

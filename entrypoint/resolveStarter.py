@@ -1,4 +1,6 @@
+import copy
 import os
+import platform
 import sys
 
 # from multiprocessing import freeze_support
@@ -13,7 +15,7 @@ from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import 
 from addressSearch.utils.commonTool import CommonTool
 from datetime import datetime
 
-__LIMIT_SCALE = 10
+__LIMIT_SCALE = 10 if platform.system() == "Windows" else 1
 
 
 # 基于 root_model_path 的相对的位置， 因为 root_model_path 就是包
