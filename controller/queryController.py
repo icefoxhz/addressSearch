@@ -149,17 +149,21 @@ async def searchByPoint(request: Request):
     """
     参数格式
     {
+        "buff_distance": 100,
         "1": "119.87630533652268,31.31180405900834"
     }
     :param request:
     :return:
     """
     jsonRequest = await request.json()
-    key = list(jsonRequest.keys())[0]
-    points_string = list(jsonRequest.values())[0]
+    # key = list(jsonRequest.keys())[0]
+    # points_string = list(jsonRequest.values())[0]
+    key = "1"
+    points_string = jsonRequest[key]
+    buff_distance = 50 if "buff_distance" not in jsonRequest else jsonRequest["buff_distance"]
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
-    succeed, result = esSearchService.run_search_by_point(points_string)
+    succeed, result = esSearchService.run_search_by_point(points_string, buff_distance)
     if succeed:
         await generate_user_result(result)
 
@@ -171,38 +175,43 @@ async def searchByPointDev(request: Request):
     """
     参数格式
     {
+        "buff_distance": 100,
         "1": "119.87630533652268,31.31180405900834"
     }
     :param request:
     :return:
     """
     jsonRequest = await request.json()
-    key = list(jsonRequest.keys())[0]
-    points_string = list(jsonRequest.values())[0]
+    # key = list(jsonRequest.keys())[0]
+    # points_string = list(jsonRequest.values())[0]
+
+    key = "1"
+    points_string = jsonRequest[key]
+    buff_distance = 50 if "buff_distance" not in jsonRequest else jsonRequest["buff_distance"]
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
-    succeed, result = esSearchService.run_search_by_point(points_string)
+    succeed, result = esSearchService.run_search_by_point(points_string, buff_distance)
     return _make_rest_result(key, result, "未找到" if not succeed else None)
 
 
-@rest_app.post("/searchByPointEx")
-async def searchByPointEx(request: Request):
-    """
-    参数格式
-    {
-        "1": "119.87630533652268,31.31180405900834"
-    }
-    :param request:
-    :return:
-    """
-    jsonRequest = await request.json()
-    key = list(jsonRequest.keys())[0]
-    points_string = list(jsonRequest.values())[0]
-
-    esSearchService = serviceApplication.application_context.get_bean("esSearchService")
-    esSearchService.set_return_multi()
-    succeed, result = esSearchService.run_search_by_point(points_string)
-    return _make_rest_result(key, result, "未找到" if not succeed else None)
+# @rest_app.post("/searchByPointEx")
+# async def searchByPointEx(request: Request):
+#     """
+#     参数格式
+#     {
+#         "1": "119.87630533652268,31.31180405900834"
+#     }
+#     :param request:
+#     :return:
+#     """
+#     jsonRequest = await request.json()
+#     key = list(jsonRequest.keys())[0]
+#     points_string = list(jsonRequest.values())[0]
+#
+#     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+#     esSearchService.set_return_multi()
+#     succeed, result = esSearchService.run_search_by_point(points_string)
+#     return _make_rest_result(key, result, "未找到" if not succeed else None)
 
 
 @rest_app.post("/reset")

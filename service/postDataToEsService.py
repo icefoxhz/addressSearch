@@ -142,41 +142,41 @@ class PostDataToEsService:
         for tId in ids:
             self._addressMapping.set_completed(self._parsed_address_table, tId)
 
-    def start_by_thread(self):
-        progress_bar = tqdm(total=0, position=0, leave=True,
-                            desc="从解析表读取数据后写入到ElasticSearch库, 当前完成 ", unit=" 条")
-
-        try:
-            page = 0
-            futures = []
-            while True:
-                df = self._addressMapping.get_parsed_data(self._parsed_address_table,
-                                                          self._batch_size,
-                                                          page * self._batch_size)
-                if df is None or len(df) == 0:
-                    break
-
-                future = self._executorTaskManager.submit(self._self.do_run,
-                                                          False,
-                                                          self.callback_function,
-                                                          df,
-                                                          progress_bar)
-                if future is not None:
-                    futures.append(future)
-                page += 1
-            self._executorTaskManager.waitUntilComplete(futures)
-
-            progress_bar.close()
-            if len(futures) > 0:
-                print("========== {} 本次操作完成 ==========".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-            futures.clear()
-
-            return True
-        except Exception as e:
-            # print(str(e))
-            log.error("start_by_thread => " + str(e))
-
-        return False
+    # def start_by_thread(self):
+    #     progress_bar = tqdm(total=0, position=0, leave=True,
+    #                         desc="从解析表读取数据后写入到ElasticSearch库, 当前完成 ", unit=" 条")
+    #
+    #     try:
+    #         page = 0
+    #         futures = []
+    #         while True:
+    #             df = self._addressMapping.get_parsed_data(self._parsed_address_table,
+    #                                                       self._batch_size,
+    #                                                       page * self._batch_size)
+    #             if df is None or len(df) == 0:
+    #                 break
+    #
+    #             future = self._executorTaskManager.submit(self._self.do_run,
+    #                                                       False,
+    #                                                       self.callback_function,
+    #                                                       df,
+    #                                                       progress_bar)
+    #             if future is not None:
+    #                 futures.append(future)
+    #             page += 1
+    #         self._executorTaskManager.waitUntilComplete(futures)
+    #
+    #         progress_bar.close()
+    #         if len(futures) > 0:
+    #             print("========== {} 本次操作完成 ==========".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    #         futures.clear()
+    #
+    #         return True
+    #     except Exception as e:
+    #         # print(str(e))
+    #         log.error("start_by_thread => " + str(e))
+    #
+    #     return False
 
     def start_by_thread_df(self, df):
         try:
@@ -189,8 +189,7 @@ class PostDataToEsService:
                 future = self._executorTaskManager.submit(self._self.do_run,
                                                           False,
                                                           self.callback_function,
-                                                          df_tmp,
-                                                          None)
+                                                          df_tmp)
                 if future is not None:
                     futures.append(future)
 
@@ -200,7 +199,7 @@ class PostDataToEsService:
             return True
         except Exception as e:
             # print(str(e))
-            log.error("start_by_thread => " + str(e))
+            log.error("start_by_thread_df => " + str(e))
 
         return False
 

@@ -18,7 +18,7 @@ class ConfigService:
         "project.local_config.port": "_port",
         "project.local_config.db_name_address": "_db_name",
         "project.local_config.address_max_return": "_address_max_return",
-        "project.local_config.point_buffer_distance": "_point_buffer_distance"
+        "project.local_config.max_point_buffer_distance": "_max_point_buffer_distance"
     })
     def __init__(self):
         self._configMapping = None
@@ -33,7 +33,7 @@ class ConfigService:
         self._port = None
         self._db_name = None
         self._address_max_return = None
-        self._point_buffer_distance = None
+        self._max_point_buffer_distance = None
 
         self.__addr_dict = {}
         self.__es_dict = {}
@@ -76,7 +76,7 @@ class ConfigService:
             "port": int(self._port),
             "db_name_address": self._db_name,
             "address_max_return": int(self._address_max_return),
-            "point_buffer_distance": self._point_buffer_distance
+            "max_point_buffer_distance": self._max_point_buffer_distance
         }
 
     def _after_init(self):

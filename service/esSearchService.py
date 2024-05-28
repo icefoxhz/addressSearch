@@ -37,7 +37,7 @@ class EsSearchService:
         self._ip = None
         self._port = None
         self._db_name_address = None
-        self._distance = None
+        self._max_distance = None
         self._max_return = None
         self._addressParseService = None
         self._lacModelManageService = None
@@ -58,7 +58,7 @@ class EsSearchService:
         self._ip = self._configService.get_es_cnf("ip")
         self._port = int(self._configService.get_es_cnf("port"))
         self._db_name_address = self._configService.get_es_cnf("db_name_address")
-        self._distance = self._configService.get_es_cnf("point_buffer_distance")
+        self._max_distance = self._configService.get_es_cnf("max_point_buffer_distance")
         self._max_return = int(self._configService.get_es_cnf("address_max_return"))
         self.__conn_es()
 
@@ -500,17 +500,19 @@ class EsSearchService:
                 return True, result
         return False, result
 
-    def _make_point_search_param(self, x, y):
+    def _make_point_search_param(self, x, y, buff_distance):
         """
         坐标查询
         :param x:
         :param y:
+        :param buff_distance:
         :return:
         """
+        buff_distance = buff_distance if buff_distance <= self._max_distance else self._max_distance
         return {
             "query": {
                 "geo_distance": {
-                    "distance": self._distance,
+                    "distance": str(float(buff_distance) / 1000) + "km",
                     "distance_type": "arc",
                     "location": {
                         "lat": float(y),
@@ -533,12 +535,8 @@ class EsSearchService:
             "size": int(self._address_max_return)
         }
 
-    def run_search_by_point(self, points_string: str):
+    def run_search_by_point(self, points_string: str, buff_distance: int):
         """
-        {
-            "1": "119.87630533652268,31.31180405900834"
-        }
-
         通过坐标匹配
         :return:
         """
@@ -546,7 +544,7 @@ class EsSearchService:
         x = str(points[0]).strip()
         y = str(points[1]).strip()
 
-        search_param = self._make_point_search_param(x=x, y=y)
+        search_param = self._make_point_search_param(x=x, y=y, buff_distance=buff_distance)
         if self._print_debug:
             print("search_param = ", search_param)
 

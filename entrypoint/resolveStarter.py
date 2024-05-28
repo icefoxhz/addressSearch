@@ -88,12 +88,14 @@ def parse_process_limit(app):
     if data_count <= limit_size:
         process_count = 1
 
+    futures = []
     ls_df = CommonTool.split_dataframe(data, process_count)
     for df in ls_df:
         # print(start, end)
-        executorTaskManager.submit(task_parse_limit, True, None, df)
+        future = executorTaskManager.submit(task_parse_limit, True, None, df)
+        futures.append(future)
     print(f"\n============ 开始分词解析, 当前需要处理数量: {data_count} , 请等待 ============\n")
-    executorTaskManager.wait_completed()
+    executorTaskManager.waitUntilComplete(futures)
     del ls_df
     return data_count
 
