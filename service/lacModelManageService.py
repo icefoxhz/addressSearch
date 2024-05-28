@@ -1,8 +1,9 @@
 import collections
+import copy
 import os
 import threading
 import uuid
-
+import queue
 import jieba
 import pandas as pd
 from LAC import LAC
@@ -46,8 +47,7 @@ class LacModelManageService:
         self._workDir = os.path.abspath('../service')
         self._currentDir = os.path.dirname(__file__)
 
-        self._lock = threading.Lock()
-        self.__q = collections.deque()
+        self.__model = None
 
     @Autowired
     def _set_params(self, configMapping: ConfigMapping,
@@ -111,8 +111,7 @@ class LacModelManageService:
 
     def _after_init(self):
         self._generateDict()
-        for _ in range(self._max_size + 1):
-            self.__q.append(self.__generateModel())
+        self.__model = self.__generateModel()
 
         # 用jieba
         jieba.load_userdict(self._dict_path_least)
@@ -126,24 +125,15 @@ class LacModelManageService:
 
     # 使用with的写法
     def __enter__(self):
-        model = None
-        with self._lock:
-            if len(self.__q) > 0:
-                model = self.__q.popleft()
-
-        # 万一__exit__ 出现异常导致模型没有还回去，就创建新的
-        if model is None:
-            model = self.__generateModel()
-            log.info("===== 队列为空，重新创建模型 ======")
-
-        self.__local_obj.model = model
-        return model
+        # self.__local_obj.model = copy.copy(self.__model)
+        # return self.__local_obj.model
+        return self.__model
 
     # 使用with的写法
     def __exit__(self, exc_type, exc_value, traceback):
-        if hasattr(self.__local_obj.model, "model") and self.__local_obj.model is not None:
-            with self._lock:
-                self.__q.append(self.__local_obj.model)
+        # if hasattr(self.__local_obj.model, "model") and self.__local_obj.model is not None:
+        #     del self.__local_obj.model
+        #     self.__local_obj.model = None
 
         # 如果在 with 语句块中出现异常，exc_type、exc_value 和 traceback 参数将包含异常信息
         if exc_type is not None:
@@ -153,10 +143,3 @@ class LacModelManageService:
             return False
         return True
 
-    # def take(self):
-    #   with self._lock:
-    #     return self.__q.popleft()
-    #
-    # def back(self, model):
-    #   with self._lock:
-    #     self.__q.append(model)
