@@ -160,7 +160,7 @@ async def searchByPoint(request: Request):
     # points_string = list(jsonRequest.values())[0]
     key = "1"
     points_string = jsonRequest[key]
-    buff_distance = 50 if "buff_distance" not in jsonRequest else jsonRequest["buff_distance"]
+    buff_distance = 40 if "buff_distance" not in jsonRequest else jsonRequest["buff_distance"]
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_search_by_point(points_string, buff_distance)
@@ -187,7 +187,7 @@ async def searchByPointDev(request: Request):
 
     key = "1"
     points_string = jsonRequest[key]
-    buff_distance = 50 if "buff_distance" not in jsonRequest else jsonRequest["buff_distance"]
+    buff_distance = 40 if "buff_distance" not in jsonRequest else jsonRequest["buff_distance"]
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_search_by_point(points_string, buff_distance)
