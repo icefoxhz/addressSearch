@@ -93,6 +93,7 @@ async def searchByAddress(request: Request):
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
     succeed, result = esSearchService.run_address_search_by_score(address_string)
+
     if succeed:
         await generate_user_result(result)
 

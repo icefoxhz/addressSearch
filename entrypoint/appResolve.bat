@@ -1,13 +1,13 @@
 @echo off
 setlocal
 
-REM ´Ó test.txt ÎÄ¼þÖÐ¶ÁÈ¡µÚÒ»ÐÐ£¬¼´ÒªÉ±ËÀµÄ½ø³ÌµÄ PID
+REM ï¿½ï¿½ test.txt ï¿½Ä¼ï¿½ï¿½Ð¶ï¿½È¡ï¿½ï¿½Ò»ï¿½Ð£ï¿½ï¿½ï¿½ÒªÉ±ï¿½ï¿½ï¿½Ä½ï¿½ï¿½Ìµï¿½ PID
 set /p PID=<resolve_pid
 
-REM É±ËÀ½ø³Ì
+REM É±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 taskkill /f /pid %PID% > nul
 
-REM Æô¶¯ÐÂµÄ½ø³Ì
-E:/windows_install/Miniconda3/envs/addressSearchpy311/python resolveByProcessStarter.py
+REM ï¿½ï¿½ï¿½ï¿½ï¿½ÂµÄ½ï¿½ï¿½ï¿½
+E:/windows_install/Miniconda3/envs/addressSearchpy311/python resolveStarter.py
 
 endlocal

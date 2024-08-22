@@ -91,13 +91,23 @@ class PostDataToEsService:
                 data_dict = {}
                 for fieldName in schemaMain["mappings"]["properties"].keys():
                     fieldName = fieldName.lower()
-                    if (fieldName == "location"
-                            and hasattr(row, self._x_field_name) and getattr(row, self._x_field_name) is not None
-                            and hasattr(row, self._y_field_name) and getattr(row, self._y_field_name) is not None):
-                        data_dict["location"] = {
-                            self._y_field_name: getattr(row, self._y_field_name),
-                            self._x_field_name: getattr(row, self._x_field_name)
-                        }
+                    if fieldName == "location":
+                        x_val = getattr(row, self._x_field_name) if hasattr(row, self._x_field_name) else None
+                        y_val = getattr(row, self._y_field_name) if hasattr(row, self._y_field_name) else None
+                        if (x_val is not None
+                                and y_val is not None
+                                and x_val != ""
+                                and y_val != ""
+                                and str(x_val).lower() != "nan"
+                                and str(y_val).lower() != "nan"):
+                            x_val = float(x_val)
+                            y_val = float(y_val)
+
+                            data_dict["location"] = {
+                                self._x_field_name: x_val,
+                                self._y_field_name: y_val
+                            }
+
                         continue
 
                     if fieldName == es_fullname_field:
@@ -122,6 +132,9 @@ class PostDataToEsService:
                 for k, v in data_dict.items():
                     if v is None or str(v) == "":
                         delKeyList.append(k)
+                    # if k == "location" and (
+                    #         str(v[self._x_field_name]).lower() == "nan" or str(v[self._y_field_name]).lower() == "nan"):
+                    #     delKeyList.append(k)
 
                 for k in delKeyList:
                     del data_dict[k]

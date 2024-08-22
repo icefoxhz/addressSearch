@@ -121,14 +121,16 @@ class EsSearchService:
                 model, address_string, is_participle_continue)
 
         if not succeed or sections_main is None or len(sections_main) == 0:
-            log.error("分詞失敗，地址: " + address_string)
+            log.error(
+                f"分詞失敗，地址: {address_string}" if not is_participle_continue else f"二次分詞失敗，地址: {address_string}")
             return False, {}
 
         if (len(sections_fir) > len(es_schema_fields_fir)
                 or len(sections_main) > len(es_schema_fields_main)
                 or len(sections_mid) > len(es_schema_fields_mid)
                 or len(sections_last) > len(es_schema_fields_last)):
-            log.error("分詞超过限制，地址: " + address_string)
+            log.error(
+                f"分詞失敗，地址: {address_string}" if not is_participle_continue else f"二次分詞失敗，地址: {address_string}")
             return False, {}
 
         # 生成查询参数
@@ -172,7 +174,7 @@ class EsSearchService:
     def __real_succeed(score):
         return score >= 70
 
-    def run_address_search(self, address_string, is_participle_continue=False):
+    def run_address_search(self, address_string, is_participle_continue=False, remove_last=False):
         succeed, result = self._run_address_search_not_by_thesaurus(address_string, is_participle_continue)
         # 还是未找到的話，使用同义词
         if not succeed:
@@ -204,6 +206,7 @@ class EsSearchService:
         d_street = None
         d_fir = None
         d_main = None
+
         d_mid1 = None
         d_mid2 = None
         d_mid3 = None

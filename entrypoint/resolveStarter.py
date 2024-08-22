@@ -135,6 +135,9 @@ if __name__ == '__main__':
         try:
             # 分词和解析
             count_parsed = parse_process_limit(serviceApplication)
+            if count_parsed > 0:
+                print("=========== 分词和解析完成, 准备写入es ===========")
+
             # 更新es
             count_to_es = post_to_es_limit(serviceApplication)
 
