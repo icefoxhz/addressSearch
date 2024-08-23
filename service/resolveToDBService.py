@@ -44,6 +44,7 @@ class ResolveToDBService:
         self._y_field_name = None
         self._address_field_name = None
         self._ID_FIELD_NAME = "id"
+        self._O_ID_FIELD_NAME = "o_id"
         self._batch_size = None
         self._address_table = None
         self._parsed_address_table = None
@@ -121,6 +122,7 @@ class ResolveToDBService:
                     is_del = int(is_del) if is_del is not None else 0
 
                     t_id = row[self._ID_FIELD_NAME]
+                    o_t_id = t_id
                     if is_participle_continue:
                         t_id = t_id + "_" + str(1)
 
@@ -166,6 +168,7 @@ class ResolveToDBService:
                     # for result in resultList:
                     result["op_flag"] = flag
                     result[self._ID_FIELD_NAME] = t_id
+                    result[self._O_ID_FIELD_NAME] = o_t_id
                     result[self._address_field_name] = full_name
                     result[self._x_field_name] = x
                     result[self._y_field_name] = y

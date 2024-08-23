@@ -576,14 +576,14 @@ class EsSearchService:
             for item in items:
                 result = item.get("_source")
                 result["score"] = item.get("_score")
-                result["id"] = int(item.get("_id"))
+                result["id"] = item.get("_id")
                 results.append(result)
             return True, results
 
         # 返回1个， 第1個分數最高
         result = items[0].get("_source")
         result["score"] = items[0].get("_score")
-        result["id"] = int(items[0].get("_id"))
+        result["id"] = items[0].get("_id")
         return True, result
 
     @staticmethod

@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 # from multiprocessing import freeze_support
 
@@ -132,6 +133,7 @@ if __name__ == '__main__':
     count_parsed_count = 0
     count_to_es_count = 0
     while True:
+        start_time = time.time()  # 获取当前时间
         try:
             # 分词和解析
             count_parsed = parse_process_limit(serviceApplication)
@@ -151,6 +153,11 @@ if __name__ == '__main__':
                 count_parsed_count = 0
                 count_to_es_count = 0
                 print(f">>>>> {tm_now} 当前需处理数据全部完成 <<<<<\n\n")
+
+            if count_parsed > 0 or count_to_es > 0:
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                print(f"本次耗时: {elapsed_time:.1f} 秒")
 
             sleep(5)
         except Exception as e:

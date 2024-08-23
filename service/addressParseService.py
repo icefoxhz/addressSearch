@@ -44,6 +44,9 @@ class AddressParseService:
         #                                         "天鹅座", "飞鱼座", "杜鹃座"]
         self._special_building_chinese_words = []
 
+        # 和下面的楼栋判断结合使用.  self._building_chinese_words中的判斷字符，但是它又是詞組
+        self._special_words = ["北幢村"]
+
         # 通用楼栋判断
         self._building_chinese_words = ["幢", "栋", "号楼", "楼", "座",
                                         "号厂区", "号东厂区", "号南厂区", "号西厂区", "号北厂区",
@@ -66,6 +69,8 @@ class AddressParseService:
                                      "东侧", "南侧", "西侧", "北侧",
                                      ]
 
+        # # 帶方向信息的名稱，和 self._conjunction_re_patterns_get_front 結合使用
+        # self._dir_rel_names = ["长南村", "泾西村", "国东村", "南村村", "东林村", "东南村", "蠡西", "东升村", "南曹庄", "南漕村"]
         self._conjunction_re_patterns_get_front = [r'正(.*?)方向(.*?)米',
                                                    r'斜(.*?)方向(.*?)米',
                                                    r'东(.*?)方向(.*?)米',
@@ -77,6 +82,9 @@ class AddressParseService:
                                                    r'西(.*?)米',
                                                    r'南(.*?)米',
                                                    r'北(.*?)米',
+                                                   r'右侧(.*?)米',
+                                                   r'前(.*?)米',
+                                                   r'后(.*?)米'
                                                    ]
 
         self._conjunction_re_patterns_get_behind = [r'路与(.*?)路交叉口',
@@ -86,6 +94,7 @@ class AddressParseService:
                                                     r'路和(.*?)路交界处',
                                                     r'路和(.*?)路交汇处',
                                                     ]
+        self._dirs = ["东", "南", "西", "北"]
 
         # --------------------------------
         self._extra_symbols = [["(", ")"],
@@ -422,7 +431,7 @@ class AddressParseService:
         # 1. 根据中文标识符判断 (特殊标识)
         for symbol in self._special_building_chinese_words:
             find_idx = addr_string.find(symbol)
-            if find_idx > 0:
+            if find_idx >= 0:
                 find_idx += len(symbol)
                 return True, addr_string[:find_idx], addr_string[find_idx:]
 
@@ -430,6 +439,14 @@ class AddressParseService:
         for symbol in self._building_chinese_words:
             # if cut_succeed:
             #     break
+
+            # 特殊判斷
+            is_go = False
+            for w in self._special_words:
+                if w.find(symbol) >= 0 and addr_string.find(w) >= 0:
+                    is_go = True
+            if is_go:
+                continue
 
             re_strs = [
                 r'第+\d+[A-Za-z]+区|\d+区|[A-Za-z]+区|[A-Za-z]+\d+区'.replace("区", symbol),  # 阿拉伯数字和字母的组合
@@ -518,38 +535,65 @@ class AddressParseService:
         # 獲取加載的字典表
         model_dict = self.__local_obj.model_dict
 
+        # # 帶方向的名稱判斷。  无锡市江阴市周庄镇长南村培元路107号北3米平房 ， 這裡有個“长南村”，有個“南”字， 就把它分成： 无锡市江阴市周庄镇 和 培元路107号北3米平房，再分別判斷
+        # for name in self._dir_rel_names:
+        #     idx = addr_string.find(name)
+        #     if idx >= 0:
+        #         for d in self._dirs:
+        #             addr_string_tmp = addr_string[:idx]
+        #             if addr_string_tmp.find(d) >= 0:
+        #                 find_addr_string = addr_string_tmp
+        #                 break
+        #             addr_string_tmp = addr_string[idx + len(name):]
+        #             if addr_string_tmp.find(d) >= 0:
+        #                 find_addr_string = addr_string_tmp
+        #                 break
+        #         break
+
         cut_succeed = False
-        # 根据正则判断
+
+        # 根据正则判断。 找最短的，因為比如：无锡市江阴市周庄镇长南村培元路107号北3米平房， 长南村也有南這個字
+        result = None
+        pattern_find = None
         for pattern in re_list:
             match = re.search(pattern, addr_string)
             if match:
+                result_tmp = match.group(0)
+                if result is None:
+                    result = result_tmp
+                    pattern_find = pattern
+                else:
+                    if len(result_tmp) < len(result):
+                        result = result_tmp
+                        pattern_find = pattern
+
+        # 找到了
+        if result is not None:
+            cut_words_origin = model.run(addr_string)[0]
+            while True:
+                # 分词后看第1个词, 第1个词是涉及方向的，但是可能在字典中
+                cut_words = model.run(result)[0]
+                cut_first_word = cut_words[0]
+                if cut_first_word not in model_dict.keys():
+                    # 可能中间被截断，要获取整个词，判断是否在字典中。如果在就不要操作了。
+                    # 比如: 东贤中路67号丁蜀中心幼儿园东行50米 , 会把整个都找到，但是"东贤中路"是字典
+                    # 比如: 阳泉西路188号红星美凯龙3层西北方向70米， 会找到:西路188号红星美凯龙3层西北方向70米，但是"阳泉西路"是字典
+                    for word in cut_words_origin:
+                        # 找到截取对应的分词的那个词，并判断是否在字典中
+                        if word.endswith(cut_first_word) and word not in model_dict.keys():
+                            break
+
+                s = "".join(cut_words[1:])
+                match = re.search(pattern_find, s)
+                if not match:
+                    break
                 result = match.group(0)
 
-                cut_words_origin = model.run(addr_string)[0]
-                while True:
-                    # 分词后看第1个词, 第1个词是涉及方向的，但是可能在字典中
-                    cut_words = model.run(result)[0]
-                    cut_first_word = cut_words[0]
-                    if cut_first_word not in model_dict.keys():
-                        # 可能中间被截断，要获取整个词，判断是否在字典中。如果在就不要操作了。
-                        # 比如: 东贤中路67号丁蜀中心幼儿园东行50米 , 会把整个都找到，但是"东贤中路"是字典
-                        # 比如: 阳泉西路188号红星美凯龙3层西北方向70米， 会找到:西路188号红星美凯龙3层西北方向70米，但是"阳泉西路"是字典
-                        for word in cut_words_origin:
-                            # 找到截取对应的分词的那个词，并判断是否在字典中
-                            if word.endswith(cut_first_word) and word not in model_dict.keys():
-                                break
-
-                    s = "".join(cut_words[1:])
-                    match = re.search(pattern, s)
-                    if not match:
-                        break
-                    result = match.group(0)
-
-                # 不在字典内就分割出去
-                if result not in model_dict.keys():
-                    cut_succeed = True
-                    addr_string = addr_string.split(result)[0] if get_front else addr_string.split(result)[1]
-        self.__print("截取到楼栋: " + addr_string)
+            # 不在字典内就分割出去
+            if result not in model_dict.keys():
+                cut_succeed = True
+                addr_string = addr_string.split(result)[0] if get_front else addr_string.split(result)[1]
+            self.__print("截取到楼栋: " + addr_string)
         return cut_succeed, addr_string
 
     def participleAndProcess(self, model: LAC, addr_string: str):
