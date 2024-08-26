@@ -22,6 +22,19 @@ class AddressParseService:
         "project.big_region.city": "_cities",
         "project.big_region.region": "_regions",
         "project.big_region.street": "_streets",
+
+        "common_symbol": "_common_symbol",
+        "special_building_chinese_words": "_special_building_chinese_words",
+        "special_words": "_special_words",
+        "building_chinese_words": "_building_chinese_words",
+        "courtyard_chinese_words": "_courtyard_chinese_words",
+        "extract_again_chinese_words": "_extract_again_chinese_words",
+        "remove_last_words": "_remove_last_words",
+        "CONJUNCTION": "_CONJUNCTION",
+        "conjunction_symbols": "_conjunction_symbols",
+        "conjunction_re_patterns_get_front": "_conjunction_re_patterns_get_front",
+        "conjunction_re_patterns_get_behind": "_conjunction_re_patterns_get_behind",
+        "extra_symbols": "_extra_symbols"
     })
     def __init__(self):
         self._print_debug = False
@@ -33,75 +46,18 @@ class AddressParseService:
         self._regions = None
         self._streets = None
 
-        # --------------------------------
-        # 比如，龙湖·星悦荟,  把这些符号去掉
-        self._common_symbol = ["·"]
-
-        # --------------------------------
-        # 特殊楼栋判断, 没有按从左往右是从大到小的顺序写。  震泽路18号B座狮子座 => 正确的应该是: 震泽路18号狮子座B座
-        # self._special_building_chinese_words = ["狮子座", "巨蟹座", "双子座", "白羊座", "金牛座", "射手座", "水瓶座",
-        #                                         "处女座", "凤凰座", "海豚座", "鲸鱼座",  "天蝎座", "摩羯座", "双鱼座",
-        #                                         "天鹅座", "飞鱼座", "杜鹃座"]
-        self._special_building_chinese_words = []
-
-        # 和下面的楼栋判断结合使用.  self._building_chinese_words中的判斷字符，但是它又是詞組
-        self._special_words = ["北幢村"]
-
-        # 通用楼栋判断
-        self._building_chinese_words = ["幢", "栋", "号楼", "楼", "座",
-                                        "号厂区", "号东厂区", "号南厂区", "号西厂区", "号北厂区",
-                                        ]
-
-        self._courtyard_chinese_words = ["期", "区"]
-
-        # 新安花苑第二社区  =>  新安花苑2。 （新安花苑第二社区和新安花苑 都在字典表中，进行2次处理）
-        self._extract_again_chinese_words = ["社区", "期", "区"]
-
-        # 最后一个词满足条件，就删掉最后一个字。  "fir_3": "国道路" => "fir_3": "国道"
-        self._remove_last_words = ["道路"]
-
-        # --------------------------------
-        self._CONJUNCTION = "-"
-        self._conjunction_symbols = ["－", "—", "～", "~", "#", "/", "、", ",", "，", " ",
-                                     "内东", "内南", "内西", "内北",
-                                     "东边", "南边", "西边", "北边",
-                                     "东面", "南面", "西面", "北面",
-                                     "东侧", "南侧", "西侧", "北侧",
-                                     ]
-
-        # # 帶方向信息的名稱，和 self._conjunction_re_patterns_get_front 結合使用
-        # self._dir_rel_names = ["长南村", "泾西村", "国东村", "南村村", "东林村", "东南村", "蠡西", "东升村", "南曹庄", "南漕村"]
-        self._conjunction_re_patterns_get_front = [r'正(.*?)方向(.*?)米',
-                                                   r'斜(.*?)方向(.*?)米',
-                                                   r'东(.*?)方向(.*?)米',
-                                                   r'西(.*?)方向(.*?)米',
-                                                   r'南(.*?)方向(.*?)米',
-                                                   r'北(.*?)方向(.*?)米',
-                                                   r'向(.*?)米',
-                                                   r'东(.*?)米',
-                                                   r'西(.*?)米',
-                                                   r'南(.*?)米',
-                                                   r'北(.*?)米',
-                                                   r'右侧(.*?)米',
-                                                   r'前(.*?)米',
-                                                   r'后(.*?)米'
-                                                   ]
-
-        self._conjunction_re_patterns_get_behind = [r'路与(.*?)路交叉口',
-                                                    r'路与(.*?)路交界处',
-                                                    r'路与(.*?)路交汇处',
-                                                    r'路和(.*?)路交叉口',
-                                                    r'路和(.*?)路交界处',
-                                                    r'路和(.*?)路交汇处',
-                                                    ]
-        self._dirs = ["东", "南", "西", "北"]
-
-        # --------------------------------
-        self._extra_symbols = [["(", ")"],
-                               ["（", "）"],
-                               ["[", "]"],
-                               ["【", "】"]
-                               ]
+        self._common_symbol = None
+        self._special_building_chinese_words = None
+        self._special_words = None
+        self._building_chinese_words = None
+        self._courtyard_chinese_words = None
+        self._extract_again_chinese_words = None
+        self._remove_last_words = None
+        self._CONJUNCTION = None
+        self._conjunction_symbols = None
+        self._conjunction_re_patterns_get_front = None
+        self._conjunction_re_patterns_get_behind = None
+        self._extra_symbols = None
 
     def __print(self, msg):
         if self._print_debug:

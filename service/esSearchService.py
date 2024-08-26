@@ -121,16 +121,16 @@ class EsSearchService:
                 model, address_string, is_participle_continue)
 
         if not succeed or sections_main is None or len(sections_main) == 0:
-            log.error(
-                f"分詞失敗，地址: {address_string}" if not is_participle_continue else f"二次分詞失敗，地址: {address_string}")
+            # log.error(
+            #     f"分詞失敗，地址: {address_string}" if not is_participle_continue else f"二次分詞失敗，地址: {address_string}")
             return False, {}
 
         if (len(sections_fir) > len(es_schema_fields_fir)
                 or len(sections_main) > len(es_schema_fields_main)
                 or len(sections_mid) > len(es_schema_fields_mid)
                 or len(sections_last) > len(es_schema_fields_last)):
-            log.error(
-                f"分詞失敗，地址: {address_string}" if not is_participle_continue else f"二次分詞失敗，地址: {address_string}")
+            # log.error(
+            #     f"分詞失敗，地址: {address_string}" if not is_participle_continue else f"二次分詞失敗，地址: {address_string}")
             return False, {}
 
         # 生成查询参数
@@ -385,6 +385,22 @@ class EsSearchService:
             [d_region, d_street, d_fir, d_main],
             [d_region, d_street, d_fir, d_main]
         ]
+
+        # 如果组织主体前部分只有1个，那可以尝试忽略
+        if len(sections_fir) == 1:
+            lss += [
+                [d_region, d_street, d_main, d_mid1, d_last_all],
+                [d_region, d_street, d_main, d_mid2, d_last_one],
+                [d_region, d_street, d_main, d_mid3, d_last_one],
+                [d_region, d_street, d_main, d_mid1],
+                [d_region, d_street, d_main, d_mid2],
+                [d_region, d_street, d_main, d_mid3],
+                [d_region, d_street, d_main, d_last_all],
+                [d_region, d_street, d_main, d_last_one],
+                [d_region, d_street, d_main],
+                [d_region, d_street, d_main]
+            ]
+
         # 去掉None
         for i in range(len(lss)):
             lss[i] = list(filter(lambda x: x is not None, lss[i]))
