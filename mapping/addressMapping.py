@@ -40,6 +40,10 @@ class AddressMapping:
     def set_completed(self, table, table_id):
         pass
 
+    @Update("update #{table} set op_flag=3 where id='#{table_id}'")
+    def set_insert_es_failed(self, table, table_id):
+        pass
+
     @Update("update #{table} set op_flag=9, is_del=0 where id='#{table_id}'")
     def set_notDelete_and_completed(self, table, table_id):
         pass
@@ -68,4 +72,8 @@ class AddressMapping:
 
     @Update("update #{table} set op_flag=2 where id='#{table_id}'")
     def set_deleted(self, table, table_id):
+        pass
+
+    @Update("delete from #{table} where id='#{table_id}'")
+    def delete_row(self, table, table_id):
         pass

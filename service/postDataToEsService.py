@@ -78,10 +78,10 @@ class PostDataToEsService:
             flag = int(getattr(row, "op_flag"))
 
             dataId = getattr(row, self._ID_FIELD_NAME)
-            ids.append(dataId)
 
             # 删除
             if flag == DBOperator.DELETE.value:
+                ids.append(dataId)
                 es.delete(dataId)
                 continue
 
@@ -140,7 +140,12 @@ class PostDataToEsService:
                     del data_dict[k]
 
                 # 入库
-                es.insert(dataId, data_dict)
+                try:
+                    es.insert(dataId, data_dict)
+                    ids.append(dataId)
+                except Exception as e:
+                    log.error(f"es.insert error:{str(e)}, dataId={str(dataId)}, dict={str(e)}")
+                    self._addressMapping.set_insert_es_failed(self._parsed_address_table, dataId)
 
         if len(ids) > 0:
             self._self.set_waiting_completed(ids)

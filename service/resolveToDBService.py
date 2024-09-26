@@ -210,16 +210,22 @@ class ResolveToDBService:
 
                 is_parsed = True
         except Exception as e:
-            log.error("ResolveToDBService do_run => " + str(e))
+            # 违反唯一性约束， 主键重复了.  这里直接删掉那个记录
+            if str(e).find('psycopg2.errors.UniqueViolation') >= 0:
+                for data in data_insert:
+                    tId = data[self._ID_FIELD_NAME]
+                    self._addressMapping.delete_row(self._parsed_address_table, tId)
+            else:
+                log.error("ResolveToDBService do_run error => " + str(e))
 
-            ls = []
-            for data in data_insert:
-                ls.append(data[self._ID_FIELD_NAME])
-            log.error("ResolveToDBService do_run => " + str(ls))
+                ls = []
+                for data in data_insert:
+                    ls.append(data[self._ID_FIELD_NAME])
+                log.error("ResolveToDBService error ids => " + str(ls))
 
-            raise Exception(e)
+                raise Exception(e)
 
-        if progress_bar is not None:
+        if progress_bar is not None and is_parsed:
             progress_bar.update(do_count)
         return is_parsed
 

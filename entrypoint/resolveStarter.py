@@ -82,7 +82,7 @@ def parse_process_limit(app):
     limit_size = process_count * min_size
 
     data = app.get_address_data_limit(limit_size * __LIMIT_SCALE)
-    data_count = len(data)
+    data_count = len(data) if data is not None else 0
     if data_count == 0:
         return data_count
 
@@ -111,7 +111,7 @@ def post_to_es_limit(app):
     limit_size = process_count * min_size
 
     data = app.get_parsed_address_data_limit(limit_size * __LIMIT_SCALE)
-    data_count = len(data)
+    data_count = len(data) if data is not None else 0
     if data_count == 0:
         return data_count
 

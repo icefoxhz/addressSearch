@@ -130,6 +130,10 @@ class CommonTool:
 
         # 遍历目录中的所有文件
         for filename in os.listdir(directory):
+            # # 本地字段不能删
+            # if filename.startswith('local_dict'):
+            #     continue
+
             file_path = os.path.join(directory, filename)
 
             # 判断是否为文件而非目录

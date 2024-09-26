@@ -30,6 +30,7 @@ class AddressParseService:
         "courtyard_chinese_words": "_courtyard_chinese_words",
         "extract_again_chinese_words": "_extract_again_chinese_words",
         "remove_last_words": "_remove_last_words",
+        "address_remove_last_words": "_address_remove_last_words",
         "CONJUNCTION": "_CONJUNCTION",
         "conjunction_symbols": "_conjunction_symbols",
         "conjunction_re_patterns_get_front": "_conjunction_re_patterns_get_front",
@@ -53,6 +54,7 @@ class AddressParseService:
         self._courtyard_chinese_words = None
         self._extract_again_chinese_words = None
         self._remove_last_words = None
+        self._address_remove_last_words = None
         self._CONJUNCTION = None
         self._conjunction_symbols = None
         self._conjunction_re_patterns_get_front = None
@@ -156,8 +158,7 @@ class AddressParseService:
         lac_list_ret = ["m" for _ in range(len(word_list_ret))]
         return [word_list_ret, lac_list_ret] if len(word_list_ret) != len(word_list) else None
 
-    @staticmethod
-    def acceptAddress(addr_string: str):
+    def acceptAddress(self, addr_string: str):
         """
         太模糊的地址，无法处理
         :param addr_string:
@@ -173,8 +174,14 @@ class AddressParseService:
         #         return False
         return True
 
-    @staticmethod
-    def prepareAddress(addr_string: str):
+    def _remove_last_word(self, s):
+        for word in self._address_remove_last_words:
+            if s.endswith(word):
+                s = s[:len(s) - len(word)]
+                break
+        return s
+
+    def prepareAddress(self, addr_string: str):
         """
         预处理
         """
@@ -182,6 +189,8 @@ class AddressParseService:
         addr_string = CommonTool.full_to_half(addr_string)
         # 去掉空格
         addr_string = CommonTool.remove_spaces(addr_string)
+        # 去掉特定结尾的词
+        addr_string = self._remove_last_word(addr_string)
         return addr_string
 
     def removeStartWordsIfNecessary(self, model: LAC, addr_string: str):
