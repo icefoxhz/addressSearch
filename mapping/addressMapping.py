@@ -5,7 +5,7 @@ from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Se
 @Component
 class AddressMapping:
     # @Select("select * from #{table} where op_flag!=9 order by id limit #{page_size} offset #{offset}")
-    # def get_address_data(self, table, page_size, offset):
+    # def get_address_data(self, table, page_size, limit_sizelimit_size):
     #     pass
 
     @Select("select * from #{table} where op_flag=0 or op_flag=1 or op_flag=2 limit #{limit_size}")

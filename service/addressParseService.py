@@ -61,6 +61,12 @@ class AddressParseService:
         self._conjunction_re_patterns_get_behind = None
         self._extra_symbols = None
 
+    def _after_init(self):
+        # 按字符串长度排序（从长到短）， 不然替换移除的时候可能出问题，比如： 鸿山、鸿山街道， 移除后会留下街道
+        self._streets = sorted(self._streets, key=lambda i: len(i), reverse=True)
+        self._cities = sorted(self._cities, key=lambda i: len(i), reverse=True)
+        self._regions = sorted(self._regions, key=lambda i: len(i), reverse=True)
+
     def __print(self, msg):
         if self._print_debug:
             print(msg)

@@ -1,12 +1,11 @@
-import collections
-import copy
 import os
 import threading
 import uuid
-import queue
+
 import jieba
 import pandas as pd
 from LAC import LAC
+from numba import jit
 from pySimpleSpringFramework.spring_core.log import log
 from pySimpleSpringFramework.spring_core.type.annotation.classAnnotation import Component
 from pySimpleSpringFramework.spring_core.type.annotation.methodAnnotation import Value, Autowired
@@ -14,8 +13,6 @@ from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
 
 from addressSearch.mapping.configMapping import ConfigMapping
 from addressSearch.service.configService import ConfigService
-from numba import jit
-import numpy as np
 
 
 @Component
@@ -64,6 +61,7 @@ class LacModelManageService:
         self._databaseManager = databaseManager
 
     def _generateDict(self):
+        log.info("=========== 开始加载字典表 ===========")
         self._dict_path = self._dict_dir + "/custom_" + str(uuid.uuid4()) + ".txt"
         self._dict_path_least = self._dict_dir + "/custom_least_" + str(uuid.uuid4()) + ".txt"
         # 判断文件是否存在
@@ -91,6 +89,8 @@ class LacModelManageService:
         dict_least_list = data["dict_value"].to_list()
         df_least = self._generate_least_word_dict(dict_least_list)
         df_least.to_csv(self._dict_path_least, index=False, header=False)
+
+        log.info("=========== 加载字典表完成 ===========")
 
     # @staticmethod
     # @jit(nopython=True)
