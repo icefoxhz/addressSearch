@@ -75,6 +75,32 @@ async def generate_user_result(result):
 
 
 # ================================================================================
+@rest_app.post("/cutAddress")
+async def cutAddress(request: Request):
+    """
+    参数格式
+    {
+        "1": "无锡市惠山区洛社镇五秦村强巷52号"
+    }
+
+    :param request:
+    :return:
+    """
+    jsonRequest = await request.json()
+    key = list(jsonRequest.keys())[0]
+    address_string = list(jsonRequest.values())[0]
+
+    try:
+        addressParseService = serviceApplication.application_context.get_bean("addressParseService")
+        lacModelManageService = serviceApplication.application_context.get_bean("lacModelManageService")
+
+        with lacModelManageService as model:
+            cut_list = addressParseService.cutOnly(model, address_string)
+
+        return {key: cut_list, "code": RestRet.SUCCEED.value, "msg": None}
+    except Exception as e:
+        return {key: [], "code": RestRet.FAILED.value, "msg": str(e)}
+
 
 @rest_app.post("/searchByAddress")
 async def searchByAddress(request: Request):
@@ -92,6 +118,7 @@ async def searchByAddress(request: Request):
     address_string = list(jsonRequest.values())[0]
 
     esSearchService = serviceApplication.application_context.get_bean("esSearchService")
+
     succeed, result = esSearchService.run_address_search_by_score(address_string)
 
     if succeed:

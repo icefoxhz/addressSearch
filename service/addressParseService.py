@@ -75,6 +75,19 @@ class AddressParseService:
     def __fail_ret():
         return False, None, None, None, None, None, None, None
 
+    def cutOnly(self, model: LAC, addr_string: str):
+        """
+        仅产生分词结果
+        """
+        if not hasattr(self.__local_obj, "model_dict"):
+            self.__local_obj.model_dict = model.__getattribute__("model").custom.dictitem
+
+        addr_string = self.prepareAddress(addr_string)
+        addr_string, ret_remove_words = self.removeStartWordsIfNecessary(model, addr_string)
+        addr_string = self.removeExtra(addr_string)
+        cut_list = model.run(addr_string)
+        return ret_remove_words + cut_list[0]
+
     def run(self, model: LAC, addr_string: str, is_participle_continue=False):
         """
         :param model:
@@ -91,7 +104,7 @@ class AddressParseService:
             if not self.acceptAddress(addr_string):
                 return self.__fail_ret()
 
-            addr_string = self.removeStartWordsIfNecessary(model, addr_string)
+            addr_string, _ = self.removeStartWordsIfNecessary(model, addr_string)
             addr_string = self.removeExtra(addr_string)
             self.__print("移除无用信息: " + str(addr_string))
 
@@ -206,6 +219,8 @@ class AddressParseService:
         :param addr_string:
         :return:
         """
+        ret_remove_words = []
+
         # 如果第1个分词就在字典表里，说明不需要处理这一步了。 因为 省、市、区、街道 不放在字典中
         model_dict = self.__local_obj.model_dict
         cut_list = model.run(addr_string)[0]
@@ -218,20 +233,23 @@ class AddressParseService:
             for remove_word in remove_words:
                 if addr_string.startswith(remove_word):
                     addr_string = addr_string.replace(remove_word, "", 1)
+                    ret_remove_words.append(remove_word)
 
         for remove_word in self._regions:
             if addr_string.startswith(remove_word):
                 self.__local_obj.region = remove_word
                 addr_string = addr_string.replace(remove_word, "", 1)
+                ret_remove_words.append(remove_word)
                 break
 
         for remove_word in self._streets:
             if addr_string.startswith(remove_word):
                 self.__local_obj.street = remove_word
                 addr_string = addr_string.replace(remove_word, "", 1)
+                ret_remove_words.append(remove_word)
                 break
 
-        return addr_string
+        return addr_string, ret_remove_words
 
     def removeExtra(self, addr_string: str):
         """
@@ -314,6 +332,12 @@ class AddressParseService:
         :return:
         """
         number = -1
+        model_dict = self.__local_obj.model_dict
+
+        # 在字典中则不处理
+        if addr_string in model_dict.keys():
+            return -1
+
         # 1. 根据中文标识符判断
         for symbol in self._courtyard_chinese_words:
             re_strs = [
@@ -326,6 +350,11 @@ class AddressParseService:
                 match = re.search(re_str, addr_string)
                 if match:
                     result = match.group(0)
+
+                    # 在字典中则不处理
+                    if result in model_dict.keys():
+                        continue
+
                     # 必须开头才行
                     if not addr_string.startswith(result):
                         continue
@@ -345,6 +374,9 @@ class AddressParseService:
         cut_succeed = False
         find_result = None
         cut_list = []
+        last_string = None
+
+        model_dict = self.__local_obj.model_dict
 
         chinese_words = self._extract_again_chinese_words if not judge_in_before_building_words else self._courtyard_chinese_words
 
@@ -360,6 +392,11 @@ class AddressParseService:
                 match = re.search(re_str, addr_string)
                 if match:
                     result = match.group(0)
+
+                    # 在字典中则不处理
+                    if result in model_dict.keys():
+                        continue
+
                     # print(result)
                     find_result = result
 
@@ -382,7 +419,6 @@ class AddressParseService:
                         cut_succeed = True
 
         # 獲取last_string
-        last_string = None
         if find_result is not None:
             last_string = addr_string_copy.split(find_result)[1]
 
@@ -398,6 +434,8 @@ class AddressParseService:
         addr_string_copy = copy.deepcopy(addr_string)
         cut_succeed = False
         find_result = None
+
+        model_dict = self.__local_obj.model_dict
 
         # 1. 根据中文标识符判断 (特殊标识)
         for symbol in self._special_building_chinese_words:
@@ -429,6 +467,11 @@ class AddressParseService:
                 match = re.search(re_str, addr_string)
                 if match:
                     result = match.group(0)
+
+                    # 在字典中则不处理
+                    if result in model_dict.keys():
+                        continue
+
                     find_result = result
                     # print(result)
                     # 能找到就认为可以截取到楼栋
