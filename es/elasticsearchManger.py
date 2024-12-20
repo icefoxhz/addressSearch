@@ -10,10 +10,12 @@ class ElasticsearchManger:
     __CONN_TIME_OUT = 120  # 单位秒
     __local_obj = threading.local()
 
-    def __init__(self, indexName, indexSchema, ip, port):
+    def __init__(self, indexName, indexSchema, ip, port, username=None, password=None):
         self.__indexName = indexName
         self._ip = ip
         self._port = port
+        self._username = username if username != "" else None
+        self._password = password if password != "" else None
         self.__indexSchema = indexSchema
 
     @property
@@ -55,7 +57,12 @@ class ElasticsearchManger:
                 self.close()
 
         if not hasattr(self.__local_obj, "es_conn") or self.__local_obj.es_conn is None:
-            es_conn = Elasticsearch(host=self._ip, port=int(self._port))
+            if self._username is not None and self._password is not None:
+                es_conn = Elasticsearch(host=self._ip, port=int(self._port), http_auth=(self._username, self._password))
+                # es_conn = Elasticsearch([{'host': self._ip, 'port': int(self._port)}], http_auth=('elastic', '112233QQwwee'))
+            else:
+                es_conn = Elasticsearch(host=self._ip, port=int(self._port))
+
             self.__local_obj.es_conn = es_conn
             self.__local_obj.last_do_time = time.time()
 

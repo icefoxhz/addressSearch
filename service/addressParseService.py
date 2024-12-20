@@ -226,7 +226,7 @@ class AddressParseService:
         cut_list = model.run(addr_string)[0]
         first_word = cut_list[0]
         if first_word in model_dict.keys():
-            return addr_string
+            return addr_string, ret_remove_words
 
         remove_list = [self._provinces, self._cities]
         for remove_words in remove_list:

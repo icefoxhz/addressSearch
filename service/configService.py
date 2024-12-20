@@ -16,6 +16,8 @@ class ConfigService:
         "project.local_config.data_table_parsed": "_data_table_parsed",
         "project.local_config.ip": "_ip",
         "project.local_config.port": "_port",
+        "project.local_config.username": "_username",
+        "project.local_config.password": "_password",
         "project.local_config.db_name_address": "_db_name",
         "project.local_config.address_max_return": "_address_max_return",
         "project.local_config.max_point_buffer_distance": "_max_point_buffer_distance"
@@ -31,6 +33,8 @@ class ConfigService:
         self._data_table_parsed = None
         self._ip = None
         self._port = None
+        self._username = None
+        self._password = None
         self._db_name = None
         self._address_max_return = None
         self._max_point_buffer_distance = None
@@ -74,6 +78,8 @@ class ConfigService:
         self.__es_dict = {
             "ip": self._ip,
             "port": int(self._port),
+            "username": self._username,
+            "password": self._password,
             "db_name_address": self._db_name,
             "address_max_return": int(self._address_max_return),
             "max_point_buffer_distance": self._max_point_buffer_distance

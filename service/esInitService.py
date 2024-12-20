@@ -23,9 +23,11 @@ class EsInitService:
     def create_scripts(self):
         ip = self._configService.get_es_cnf("ip")
         port = int(self._configService.get_es_cnf("port"))
+        username = self._configService.get_es_cnf("username")
+        password = self._configService.get_es_cnf("password")
         db_name_address = self._configService.get_es_cnf("db_name_address")
 
-        es_cli = ElasticsearchManger(db_name_address, schemaMain, ip, port)
+        es_cli = ElasticsearchManger(db_name_address, schemaMain, ip, port, username, password)
         with es_cli as es_conn:
             if es_conn is None:
                 return

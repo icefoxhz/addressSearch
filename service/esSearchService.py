@@ -36,6 +36,8 @@ class EsSearchService:
         self._parsed_address_table = None
         self._ip = None
         self._port = None
+        self._username = None
+        self._password = None
         self._db_name_address = None
         self._max_distance = None
         self._max_return = None
@@ -50,13 +52,15 @@ class EsSearchService:
         self._multi_region = False
         self._region_field = None
         self._street_field = None
-        self._build_number_tolerance = 10  # 前后n栋的来去
+        self._build_number_tolerance = 20  # 前后n栋的来去
 
     def _after_init(self):
         self._address_table = self._configService.get_addr_cnf("data_table")
         self._parsed_address_table = self._configService.get_addr_cnf("data_table_parsed")
         self._ip = self._configService.get_es_cnf("ip")
         self._port = int(self._configService.get_es_cnf("port"))
+        self._username = self._configService.get_es_cnf("username")
+        self._password = self._configService.get_es_cnf("password")
         self._db_name_address = self._configService.get_es_cnf("db_name_address")
         self._max_distance = self._configService.get_es_cnf("max_point_buffer_distance")
         self._max_return = int(self._configService.get_es_cnf("address_max_return"))
@@ -68,7 +72,7 @@ class EsSearchService:
         # add_schema_field(schemaMainNew, "ex_val")
         # self._es_cli = ElasticsearchManger(self._db_name_address, schemaMainNew, self._ip, self._port)
 
-        self._es_cli = ElasticsearchManger(self._db_name_address, schemaMain, self._ip, self._port)
+        self._es_cli = ElasticsearchManger(self._db_name_address, schemaMain, self._ip, self._port, self._username, self._password)
         with self._es_cli as es_conn:
             if es_conn is None:
                 return
@@ -298,26 +302,15 @@ class EsSearchService:
                             }
                         }
                     )
-                    # d_mid2["bool"]["should"].append(
-                    #     {
-                    #         "multi_match": {
-                    #             "query": val,
-                    #             "fields":
-                    #                 es_schema_fields_mid + es_schema_fields_last
-                    #                 if not val.isdigit()  # 如果非纯数字就多查下 last
-                    #                 else
-                    #                 es_schema_fields_mid
-                    #         }
-                    #     }
-                    # )
 
                 d_mid2 = copy.deepcopy(d_mid1)
                 d_mid2["bool"]["minimum_should_match"] = "0%"
 
                 p = len(sections_mid)
                 if p > 1:
-                    p = int((2 / (p + 1)) * 100 + 1)
-                    d_mid2["bool"]["minimum_should_match"] = f"{p}%"
+                    # p = int((2 / (p + 1)) * 100 + 1)
+                    # d_mid2["bool"]["minimum_should_match"] = f"{p}%"
+                    d_mid2["bool"]["minimum_should_match"] = "10%"
 
                     d_mid3 = copy.deepcopy(d_mid1)
                     d_mid3["bool"]["minimum_should_match"] = "0%"

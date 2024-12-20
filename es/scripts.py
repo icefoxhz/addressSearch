@@ -88,10 +88,12 @@ SEARCH_SCORE_SCRIPT = {
             if (query_value_length > 1) {
                 int avg_score = MID_ALL_SCORE / query_value_length;
                 
+                boolean mid_1_found = false;
                 // 第1个位置mid_1的值必须对应
                 if (doc.containsKey(params.query_fields_mid[0]) && doc[params.query_fields_mid[0]].size() > 0){
                     if (doc[params.query_fields_mid[0]].value == params.query_value_mid[0]) {
                         found_count += 1;
+                        mid_1_found = true;
                     }
                 }
                 
@@ -110,6 +112,9 @@ SEARCH_SCORE_SCRIPT = {
                     mid_score = MID_ALL_SCORE;
                 }else{
                     mid_score =  avg_score * found_count;
+                    if (mid_1_found){
+                        mid_score += 3;
+                    }
                 }
             }
             

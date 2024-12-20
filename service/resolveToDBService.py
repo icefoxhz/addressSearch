@@ -27,6 +27,7 @@ class ResolveToDBService:
         "project.big_region.region_field": "_region_field",
         "project.big_region.street_field": "_street_field",
         "project.big_region.multi_region": "_multi_region",
+        "project.local_config.address_ex_fields": "_address_ex_fields"
     })
     def __init__(self):
         # 自己注入自己，为了可以调用 Sync
@@ -52,6 +53,7 @@ class ResolveToDBService:
         self._region_field = None
         self._street_field = None
         self._multi_region = False
+        self._address_ex_fields = []
 
     def __reduce__(self):
         # 在序列化过程中排除线程锁
@@ -182,6 +184,10 @@ class ResolveToDBService:
                         data_modify.append(result)
                         do_count += 1
 
+                    # 附加字段
+                    for ex_field in self._address_ex_fields:
+                        result[ex_field] = row[ex_field]
+
                 # 新增
                 if len(data_insert) > 0:
                     self._do_parsed_result(data=data_insert)
@@ -274,7 +280,7 @@ class ResolveToDBService:
             del df
         except Exception as e:
             # print(str(e))
-            log.error("start_by_process => " + str(e))
+            log.error("start_by_process_df => " + str(e))
 
     # def callback_function(self, future):
     #     future.result()

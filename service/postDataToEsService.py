@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from addressSearch.enums.dbOperator import DBOperator
 from addressSearch.es.elasticsearchManger import ElasticsearchManger
-from addressSearch.es.schemas import schemaMain, es_fullname_field
+from addressSearch.es.schemas import schemaMain, es_fullname_field, add_schema_field
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.configService import ConfigService
 from addressSearch.utils.commonTool import CommonTool
@@ -25,6 +25,7 @@ class PostDataToEsService:
         "project.standard.x_field_name": "_x_field_name",
         "project.standard.y_field_name": "_y_field_name",
         "project.standard.address_field_name": "_address_field_name",
+        "project.local_config.address_ex_fields": "_address_ex_fields",
     })
     def __init__(self):
         self._self = None
@@ -34,6 +35,8 @@ class PostDataToEsService:
         self._db_name = None
         self._ip = None
         self._port = None
+        self._username = None
+        self._password = None
         self._batch_size = None
         self._max_core = 2
         self._x_field_name = None
@@ -41,6 +44,7 @@ class PostDataToEsService:
         self._ID_FIELD_NAME = "id"
         self._address_field_name = None
         self._executorTaskManager = None
+        self._address_ex_fields = []
 
     @Autowired
     def set_params(self,
@@ -62,13 +66,15 @@ class PostDataToEsService:
         self._db_name = self._configService.get_es_cnf("db_name_address")
         self._ip = self._configService.get_es_cnf("ip")
         self._port = int(self._configService.get_es_cnf("port"))
+        self._username = self._configService.get_es_cnf("username")
+        self._password = self._configService.get_es_cnf("password")
         self._es_init()
 
     @Transactional()
     def do_run(self, df, progress_bar=None):
         df.columns = df.columns.str.lower()
 
-        es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+        es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port, self._username, self._password)
         if es is None:
             log.error("当前线程连接elasticSearch服务器失败")
             return
@@ -221,13 +227,36 @@ class PostDataToEsService:
 
         return False
 
+    # 同步方法，这个调试用
+    # def start_by_thread_df(self, df):
+    #     try:
+    #         batch = int(len(df) / self._batch_size)
+    #         batch += int(0 if len(df) % self._batch_size == 0 else 1)
+    #
+    #         ls_df = CommonTool.split_dataframe(df, batch)
+    #         for df_tmp in ls_df:
+    #             self.do_run(df_tmp)
+    #         return True
+    #     except Exception as e:
+    #         # print(str(e))
+    #         log.error("start_by_thread_df => " + str(e))
+    #
+    #     return False
+
     def _createESSchema(self):
+        # 动态添加 address_ex_fields 中的字段。 深拷贝一份，不能修改老的
+        self._add_schema_fields()
+
         try:
-            es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)
+            es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port, self._username, self._password)
             es.create(self._db_name)
             es.close()
         except Exception as e:
             print("create_es_index => " + str(e))
+
+    def _add_schema_fields(self):
+        for ex_field in self._address_ex_fields:
+            add_schema_field(ex_field)
 
     # def _deleteDB(self):
     #     es = ElasticsearchManger(self._db_name, schemaMain, self._ip, self._port)

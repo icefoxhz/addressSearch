@@ -11,8 +11,8 @@ schemaMain = {
 }
 
 
-def add_schema_field(schema, field_name, field_type="keyword"):
-    schema["mappings"]["properties"][field_name] = {
+def add_schema_field(field_name, field_type="keyword"):
+    schemaMain["mappings"]["properties"][field_name] = {
         "type": "keyword",
         "store": True,
         "fields": {
@@ -23,14 +23,32 @@ def add_schema_field(schema, field_name, field_type="keyword"):
     }
 
 
-def add_schema_field_ex(schema, field_name, field_type="keyword"):
-    schema["mappings"]["properties"][field_name] = {
+def add_schema_field_ex(field_name, field_type="keyword"):
+    schemaMain["mappings"]["properties"][field_name] = {
         "type": field_type,
     }
 
 
-def copy_schema():
-    return copy.deepcopy(schemaMain)
+# def add_schema_field(schema, field_name, field_type="keyword"):
+#     schema["mappings"]["properties"][field_name] = {
+#         "type": "keyword",
+#         "store": True,
+#         "fields": {
+#             "keyword": {
+#                 "type": field_type
+#             }
+#         }
+#     }
+#
+#
+# def add_schema_field_ex(schema, field_name, field_type="keyword"):
+#     schema["mappings"]["properties"][field_name] = {
+#         "type": field_type,
+#     }
+
+
+# def copy_schema():
+#     return copy.deepcopy(schemaMain)
 
 
 es_schema_fields_region = "region"
@@ -57,7 +75,7 @@ es_schema_fields = (
 )
 
 for field in es_schema_fields:
-    add_schema_field(schemaMain, field)
-add_schema_field_ex(schemaMain, es_schema_field_building_number, "long")
+    add_schema_field(field)
+add_schema_field_ex(es_schema_field_building_number, "long")
 
 # print("schemaMain: ", schemaMain)
