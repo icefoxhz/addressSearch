@@ -8,6 +8,6 @@ REM 杀死进程
 taskkill /f /pid %PID% > nul
 
 REM 启动新的进程
-E:/windows_install/Miniconda3/envs/addressSearchpy311/python appStart.py --workers 4 --threads 8
+E:/windows_install/Miniconda3/envs/addressSearchpy311/python appRestStarter.py --workers 4 --threads 8
 
 endlocal
