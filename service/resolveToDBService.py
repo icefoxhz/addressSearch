@@ -7,12 +7,10 @@ from pySimpleSpringFramework.spring_core.type.annotationType import Propagation
 from pySimpleSpringFramework.spring_orm.annoation.dataSourceAnnotation import Transactional
 from pySimpleSpringFramework.spring_orm.databaseManager import DatabaseManager
 from tqdm import tqdm
-from addressSearch.enums.dbOperator import DBOperator
-from addressSearch.es.schemas import es_schema_fields_fir, es_schema_fields_main, \
-    es_schema_fields_mid, es_schema_fields_last
+from addressSearch.enums.dbOperator import DBOperator, RestRet
 from addressSearch.mapping.addressMapping import AddressMapping
 from addressSearch.service.configService import ConfigService
-from addressSearch.service.lacModelManageService import LacModelManageService
+from addressSearch.service.aiModelService import AiModelService
 from addressSearch.utils.commonTool import CommonTool
 
 
@@ -34,7 +32,7 @@ class ResolveToDBService:
         self._self = None
 
         self._databaseManager = None
-        self._lacModelManageService = None
+        self._aiModelService = None
         self._addressMapping = None
         self._applicationContext = None
         self._configService = None
@@ -61,7 +59,7 @@ class ResolveToDBService:
 
     @Autowired
     def set_params(self,
-                   lacModelManageService: LacModelManageService,
+                   aiModelService: AiModelService,
                    resolveToDBService,
                    applicationContext,
                    configService: ConfigService,
@@ -70,7 +68,7 @@ class ResolveToDBService:
                    executorTaskManager: ExecutorTaskManager
                    ):
         self._configService = configService
-        self._lacModelManageService = lacModelManageService
+        self._aiModelService = aiModelService
         self._self = resolveToDBService
         self._applicationContext = applicationContext
         self._addressMapping = addressMapping
@@ -93,128 +91,100 @@ class ResolveToDBService:
     @Transactional()
     def do_run(self, df, is_participle_continue=False, progress_bar=None):
         is_parsed = False
+
+        do_count = 0
+        ids_insert = []
+        ids_update = []
+        ids_delete = []
+        ids_unable_parsed = []
+
+        data_insert = []
+        data_modify = []
+
         try:
-            with (self._lacModelManageService as model):
-                do_count = 0
-                ids_insert = []
-                ids_update = []
-                ids_delete = []
-                ids_unable_parsed = []
+            for _, row in df.iterrows():
+                full_name = row[self._address_field_name]
+                if full_name is None or full_name == "":
+                    continue
 
-                data_insert = []
-                data_modify = []
+                x = row[self._x_field_name]
+                y = row[self._y_field_name]
 
-                for _, row in df.iterrows():
-                    full_name = row[self._address_field_name]
-                    if full_name is None or full_name == "":
-                        continue
+                op_flag = row["op_flag"]
+                is_del = row["is_del"]
+                flag = int(op_flag) if op_flag is not None else 0
+                is_del = int(is_del) if is_del is not None else 0
 
-                    x = row[self._x_field_name]
-                    y = row[self._y_field_name]
+                t_id = row[self._ID_FIELD_NAME]
+                o_t_id = t_id
+                if is_participle_continue:
+                    t_id = t_id + "_" + str(1)
 
-                    region = None
-                    street = None
-                    if self._multi_region and self._region_field is not None and self._region_field != "" and self._street_field is not None and self._street_field != "":
-                        region = row[self._region_field]
-                        street = row[self._street_field]
-
-                    op_flag = row["op_flag"]
-                    is_del = row["is_del"]
-                    flag = int(op_flag) if op_flag is not None else 0
-                    is_del = int(is_del) if is_del is not None else 0
-
-                    t_id = row[self._ID_FIELD_NAME]
-                    o_t_id = t_id
-                    if is_participle_continue:
-                        t_id = t_id + "_" + str(1)
-
-                    if flag == DBOperator.INSERT.value:
-                        if is_del == 1:  # 如果这条记录已经删除了。（删除后重新新增, 实际是更新)
-                            ids_update.append(t_id)
-                        else:
-                            ids_insert.append(t_id)
-                    elif flag == DBOperator.UPDATE.value:
+                if flag == DBOperator.INSERT.value:
+                    if is_del == 1:  # 如果这条记录已经删除了。（删除后重新新增, 实际是更新)
                         ids_update.append(t_id)
-                    elif flag == DBOperator.DELETE.value:
-                        ids_delete.append(t_id)
-                        continue
                     else:
-                        raise Exception("flag未知的数字: {} ！0=新增  1=更新  2=删除  9=完成".format(t_id))
+                        ids_insert.append(t_id)
+                elif flag == DBOperator.UPDATE.value:
+                    ids_update.append(t_id)
+                elif flag == DBOperator.DELETE.value:
+                    ids_delete.append(t_id)
+                    continue
+                else:
+                    raise Exception("flag未知的数字: {} ！0=新增  1=更新  2=删除  9=完成".format(t_id))
 
-                    # address_parser = self._applicationContext.get_bean("addressParser")
-                    # resultList, cutListStr = self._addressParseRunner.run(address_parser, model, full_name, x, y)
-                    # # 目前这个做法 resultList 多条会有问题，暂时就选第1个
-                    # result = resultList[0]
+                result = self._aiModelService.run(full_name)
+                if result["code"] == RestRet.FAILED.value:
+                    log.error("命名实体识别失败, full_name= " + full_name)
+                    continue
 
-                    address_parser = self._applicationContext.get_bean("addressParseService")
-                    succeed, _, _, section_fir, section_main, section_mid, section_last, section_build_number = address_parser.run(
-                        model, full_name, is_participle_continue)
-                    if not succeed:
-                        if not is_participle_continue:
-                            ids_unable_parsed.append(t_id)
-                        continue
-
-                    if (len(section_fir) > len(es_schema_fields_fir)
-                            or len(section_main) > len(es_schema_fields_main)
-                            or len(section_mid) > len(es_schema_fields_mid)
-                            or len(section_last) > len(es_schema_fields_last)):
-                        log.error("分詞超过限制，地址: " + full_name)
-                        continue
-
-                    result = section_fir | section_main | section_mid | section_last | section_build_number
-                    if region is not None:
-                        result["region"] = region
-                    if street is not None:
-                        result["street"] = street
-
-                    # for result in resultList:
-                    result["op_flag"] = flag
-                    result[self._ID_FIELD_NAME] = t_id
-                    result[self._O_ID_FIELD_NAME] = o_t_id
-                    result[self._address_field_name] = full_name
-                    result[self._x_field_name] = x
-                    result[self._y_field_name] = y
-                    if flag == DBOperator.INSERT.value:
-                        if is_del == 1:  # 删除后重新新增实际是更新
-                            data_modify.append(result)
-                        else:
-                            data_insert.append(result)
-                        do_count += 1
-                    if flag == DBOperator.UPDATE.value:
+                result["op_flag"] = flag
+                result[self._ID_FIELD_NAME] = t_id
+                result[self._O_ID_FIELD_NAME] = o_t_id
+                result[self._address_field_name] = full_name
+                result[self._x_field_name] = x
+                result[self._y_field_name] = y
+                if flag == DBOperator.INSERT.value:
+                    if is_del == 1:  # 删除后重新新增实际是更新
                         data_modify.append(result)
-                        do_count += 1
+                    else:
+                        data_insert.append(result)
+                    do_count += 1
+                if flag == DBOperator.UPDATE.value:
+                    data_modify.append(result)
+                    do_count += 1
 
-                    # 附加字段
-                    for ex_field in self._address_ex_fields:
-                        result[ex_field] = row[ex_field]
+                # 附加字段
+                for ex_field in self._address_ex_fields:
+                    result[ex_field] = row[ex_field]
 
-                # 新增
-                if len(data_insert) > 0:
-                    self._do_parsed_result(data=data_insert)
-                    for tId in ids_insert:
-                        self._addressMapping.set_notDelete_and_completed(self._address_table, tId)
+            # 新增
+            if len(data_insert) > 0:
+                self._do_parsed_result(data=data_insert)
+                for tId in ids_insert:
+                    self._addressMapping.set_notDelete_and_completed(self._address_table, tId)
 
-                # 修改
-                if len(data_modify) > 0:
-                    # 修改太麻烦，这里使用先删再插。
-                    self._self.delete_data(ids_update)
-                    self._do_parsed_result(data=data_modify)
+            # 修改
+            if len(data_modify) > 0:
+                # 修改太麻烦，这里使用先删再插。
+                self._self.delete_data(ids_update)
+                self._do_parsed_result(data=data_modify)
 
-                    for tId in ids_update:
-                        self._addressMapping.set_notDelete_and_completed(self._address_table, tId)
+                for tId in ids_update:
+                    self._addressMapping.set_notDelete_and_completed(self._address_table, tId)
 
-                # 删除
-                if len(ids_delete) > 0:
-                    for tId in ids_delete:
-                        self._addressMapping.set_deleted(self._parsed_address_table, tId)
-                        self._addressMapping.set_delete_and_completed(self._address_table, tId)
+            # 删除
+            if len(ids_delete) > 0:
+                for tId in ids_delete:
+                    self._addressMapping.set_deleted(self._parsed_address_table, tId)
+                    self._addressMapping.set_delete_and_completed(self._address_table, tId)
 
-                # 无法解析
-                if len(ids_unable_parsed) > 0:
-                    for tId in ids_unable_parsed:
-                        self._addressMapping.set_unable_parsed(self._address_table, tId)
+            # 无法解析
+            if len(ids_unable_parsed) > 0:
+                for tId in ids_unable_parsed:
+                    self._addressMapping.set_unable_parsed(self._address_table, tId)
 
-                is_parsed = True
+            is_parsed = True
         except Exception as e:
             # 违反唯一性约束， 主键重复了.  这里直接删掉那个记录
             if str(e).find('psycopg2.errors.UniqueViolation') >= 0:
